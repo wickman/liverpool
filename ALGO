@@ -1,0 +1,46 @@
+Color:
+  Club/Spade/Heart/Diamond
+
+
+Rank:
+  2-14
+
+
+Card:
+  .color [Club, Spade, Heart, Diamond]
+  .rank  [2-10, 11[J], 12[Q], 13[K], 14[A]]
+  [None ==> wildcard; .color=None, .rank=None ==> JOKER]
+
+  iter_rank(...):
+    create an iterator starting at Card and iterate until Ace
+
+
+Hand
+  .setdices [counters for each rank] (|L|=15)
+  .rundices[color] [contiguous run vectors, |L|=15]
+
+
+Run
+  .start=Card (fully specified, never joker)
+  .jokers = boolean array of joker or not (length = length of run)
+
+
+Set
+  .rank=Rank
+  .colors=[Color array, None for JOKER]
+
+
+.put_card(Card) => increment indices
+.put_run => translate into put_cards
+.put_set => translate into put_cards
+
+.take_card(Card) => decrement indices
+.take_run => translate into take_cards
+.take_set => translate into take_cards
+
+raise UnavailableError if cannot take
+
+
+if adding a card to a hand:
+  - increment setdex
+  - update rundex 
