@@ -44,3 +44,7 @@ raise UnavailableError if cannot take
 if adding a card to a hand:
   - increment setdex
   - update rundex 
+
+
+how to generate candidate runs and sets?
+
