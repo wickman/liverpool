@@ -43,8 +43,87 @@ raise UnavailableError if cannot take
 
 if adding a card to a hand:
   - increment setdex
-  - update rundex 
+  - update rundex
 
 
 how to generate candidate runs and sets?
 
+for rank, dim_max in enumerate(self.setdex):
+  for dim in range(3, dim_max + 1):
+    for card_set in CardSet(self.filter(rank)).choose(dim):
+      yield Set(rank, card_set.colors())
+
+sets:
+  if jokers, increment all setdices by #jokers in range(0, #jokers+1)
+    given a setdex >= 3:
+      for each dimension in range(3, dim+1)
+        yield all combinations of holding sets in rank/dimension
+
+runs:
+  increment all rundices by #jokers
+
+  runs = []
+
+  for each nonzero rundex element:
+    start = element
+    run = Run(start)
+
+    while True:
+      try:
+        card = take_card(start)
+        start.incr()
+        run.append(card)
+      except InvalidTake:
+        undo(run)
+        break
+      if run.valid:
+        runs.append(run.dup())
+
+  run_jokers = []
+  iterate through each rundex:
+    card = take_card(rundex card)
+
+
+# 3 jokers + lots of cards =
+#     2300 runs
+#     3000 sets
+
+
+
+let's assume for a moment that we can generate all sets and runs
+we still need to be able to generate all combinations of sets and runs
+which will look like the following:
+
+Strategy(object):
+  runs = int
+  sets = int
+
+
+# the challenge here is that it should be possible to take two of identical
+# runs -- e.g. if you have two 7-10 spades runs, you can play each.
+#
+# this might mean codifying the rank of the cards
+#
+# e.g. if you have 2 7H, they should be identified as (0,7H), (1,7H)  (!dingdingding)
+#
+# in practice though (0,7H),(0,7S),(0,7D) should be interoperable with
+# (1,7H),(0,7S),(0,7D)
+#
+# this only really matters for take() operations.  should we care?  are we
+# prematurely optimizing? (probably)
+#
+# it seems like for sets, this distinction is superfluous
+# for run _generation_ it could possibly matter
+#
+# so could it for sets, technically speaking, because you could have 7HSD + 7HSD
+
+
+for run_comb in set(itertools.combinations(runs, run_dim)):
+  for set_comb in set(itertools.combinations(sets, set_dim)):
+    yield run_comb, set_comb
+
+
+# The way to get around this is to just generate all possibilities,
+# unenumerated, then with all_sets, all_runs, when you select one for
+# consideration, you do not remove it from all_sets (so that each could be
+# considered in duplicate.)

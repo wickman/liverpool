@@ -1,3 +1,7 @@
+from collections import defaultdict
+import itertools
+
+
 class Color(object):
   class Error(Exception): pass
   class InvalidColor(Error): pass
@@ -125,6 +129,33 @@ class Set(object):
     return self.colors == other.colors and self.rank == other.rank
 
 
+#
+# [heart, heart, spade, None]
+#
+# choose 2
+#   heart heart
+#   heart spade
+#   heart None
+#   spade None
+#
+# 4c2 =>
+#  4! /
+#  2!(4-2)!
+#  => 4*3*2*1/2/2 => 6
+# huh?
+#
+# [heart, heart, spade, None]
+#   => {heart:2, spade:1, None:1}
+#
+# def take_color(color_iter, color_max):
+#   next_color = next(color_iter)
+#   for color_rank in range(0, min(color_max, colordex[next_color])):
+#     yield (color_rank, take_color(color_iter, color_max - color_rank))
+#
+#
+#
+
+
 class Hand(object):
   class Error(Exception): pass
   class InvalidCard(Error): pass
@@ -134,7 +165,7 @@ class Hand(object):
 
   def __init__(self, cards=None):
     self.rundex = dict((color, [0] * (Rank.RANK_MAX + 1)) for color in Color.iter())
-    self.setdex = [0] * (Rank.RANK_MAX + 1)
+    self.setdex = [[] for k in range(Rank.RANK_MAX + 1)]
     self.cards = defaultdict(int)
     for card in self.cards:
       self.put_card(card)
@@ -163,3 +194,26 @@ class Hand(object):
     self.rundex[card.color][card.rank] += 1
     self.setdex[card.rank] += 1
 
+  def put_run(self, run):
+    if not isinstance(run, Run):
+      raise TypeError('Expected run to be Run, got %s' % type(run))
+    for card, joker in itertools.izip(run.start.iter_rank(), run.jokers):
+      self.put_card(Card.JOKER if joker else card)
+
+  def put_set(self, set_):
+    if not isinstance(set_, Set):
+      raise TypeError('Expected set to be Set, got %s' % type(set_))
+    for color in set_.colors:
+      self.put_card(Card.JOKER if color is None else Card(set_.rank, color))
+
+  def take_run(self, run):
+    pass
+
+  def take_set(self, set_):
+    pass
+
+  def iter_sets(self):
+    #for rank, dim_max in enumerate(self.setdex):
+    #  for dim in range(3, dim_max + 1):
+    #    yield Set(rank, dim)
+    pass
