@@ -1,6 +1,10 @@
 from collections import defaultdict
 import itertools
 
+from .combinatorics import (
+    combinations_with_replacement,
+    unique_combinations,
+)
 
 class Color(object):
   class Error(Exception): pass
@@ -156,64 +160,153 @@ class Set(object):
 #
 
 
+class Objective(object):
+  def __init__(self, num_sets, num_runs):
+    if not isinstance(num_sets, int) or num_sets < 0:
+      raise TypeError('Number of sets must be a non-negative integer.')
+    if not isinstance(num_runs, int) or num_runs < 0:
+      raise TypeError('Number of runs must be a non-negative integer.')
+    self.num_sets = num_sets
+    self.num_runs = num_runs
+
+
+class Lay(object):
+  def __init__(self, sets=None, runs=None):
+    self.sets = tuple(sets) or []
+    self.runs = tuple(runs) or []
+    if not all(isinstance(set_, Set) for set_ in self.sets):
+      raise TypeError('sets must be instances of Set.')
+    if not all(isinstance(run, Run) for run_ in self.runs):
+      raise TypeError('runs must be instances of Run.')
+
+
 class Hand(object):
   class Error(Exception): pass
   class InvalidCard(Error): pass
   class InvalidTake(Error): pass
 
-  __slots__ = ('cards', 'setdex', 'rundex')
+  __slots__ = ('cards', 'stack', 'setdex', 'rundex', 'jokers')
 
   def __init__(self, cards=None):
     self.rundex = dict((color, [0] * (Rank.RANK_MAX + 1)) for color in Color.iter())
     self.setdex = [[] for k in range(Rank.RANK_MAX + 1)]
     self.cards = defaultdict(int)
+    self.jokers = 0
+    self.stack = [None]   # stack of takes, None represents start of a "transaction"
     for card in self.cards:
       self.put_card(card)
+    self.commit()
+
+  def commit(self):
+    self.stack.append(None)
+
+  def rollback(self):
+    while self.stack[-1] is not None:
+      self.put_card(self.stack.pop())
+
+  def undo(self):
+    assert len(self.stack) > 1
+    assert self.stack.pop() is None
+    self.rollback()
+
+  def truncate(self):
+    self.stack = [None]
 
   def take_card(self, card):
     if not isinstance(card, Card):
       raise TypeError('Expected card to be Card, got %s' % type(card))
-    if self.cards[card] < 0:
-      if self.cards[Card.JOKER] == 0:
-        raise cls.InvalidTake('Hand does not contain a %s or Joker' % card)
-      self.cards[Card.JOKER] -= 1
+
+    if card == Card.JOKER or self.cards[card] <= 0:
+      if self.jokers == 0:
+        raise cls.InvalidTake('Hand does not contain jokers!')
+      self.jokers -= 1
+      self.stack.append(Card.JOKER)
       return Card.JOKER
+
     self.cards[card] -= 1
     self.rundex[card.color][card.rank] -= 1
-    self.setdex[card.rank] -= 1
+    self.setdex[card.rank].remove(card.color)
+    self.stack.append(card)
     return card
 
   def put_card(self, card):
     if not isinstance(card, Card):
       raise TypeError('Expected card to be Card, got %s' % type(card))
-    self.cards[card] += 1
 
     if card == Card.JOKER:  # jokers are wild!
+      self.jokers += 1
       return
 
+    self.cards[card] += 1
     self.rundex[card.color][card.rank] += 1
-    self.setdex[card.rank] += 1
+    self.setdex[card.rank].append(card.color)
 
-  def put_run(self, run):
+  def _map_run(self, run, method):
     if not isinstance(run, Run):
       raise TypeError('Expected run to be Run, got %s' % type(run))
     for card, joker in itertools.izip(run.start.iter_rank(), run.jokers):
-      self.put_card(Card.JOKER if joker else card)
+      method(Card.JOKER if joker else card)
 
-  def put_set(self, set_):
+  def map_set(self, set_, method):
     if not isinstance(set_, Set):
       raise TypeError('Expected set to be Set, got %s' % type(set_))
     for color in set_.colors:
-      self.put_card(Card.JOKER if color is None else Card(set_.rank, color))
+      method(Card.JOKER if color is None else Card(set_.rank, color))
+
+  def put_run(self, run):
+    self._map_run(run, self.put_card)
+
+  def put_set(self, set_):
+    self._map_set(set_, self.put_card)
 
   def take_run(self, run):
-    pass
+    self._map_run(run, self.take_card)
 
   def take_set(self, set_):
-    pass
+    self._map_set(set_, self.take_card)
 
   def iter_sets(self):
-    #for rank, dim_max in enumerate(self.setdex):
-    #  for dim in range(3, dim_max + 1):
-    #    yield Set(rank, dim)
+    for rank, colors in enumerate(self.setdex):
+      if rank < 2:
+        continue
+      jokered_colors = colors + [None] * self.jokers
+      jokered_colors.sort()
+      for set_size in range(3, len(jokered_colors) + 1):
+        for combination in unique_combinations(jokered_colors, set_size):
+          yield Set(rank, combination)
+
+  def iter_runs(self):
+    # iterate over all valid runs.  you may not be able to take_run all of them
+    # necessarily, but in isolation they are valid.
     pass
+
+  def _iter_lays(self, strategy):
+    set_combinator = combinations_with_replacement(self.iter_sets(), strategy.num_sets)
+    run_combinator = combinations_with_replacement(self.iter_runs(), strategy.num_runs)
+    if strategy.num_sets == 0:
+      for sets in set_combinator:
+        yield Lay(sets, None)
+    elif strategy.num_runs == 0:
+      for runs in run_combinator:
+        yield Lay(None, runs)
+    else:
+      for sets, runs in itertools.product(set_combinator, run_combinator):
+        yield Lay(sets, runs)
+
+  def _valid_lay(self, lay):
+    try:
+      for set_ in lay.sets:
+        self.take_set(set_)
+      for run in lay.runs:
+        self.take_run(run)
+    except self.InvalidTake:
+      self.rollback()
+      return False
+
+    self.undo()
+    return True
+
+  def iter_lays(self, strategy):
+    for lay in self._iter_lays(strategy):
+      if self._valid_lay(lay):
+        yield lay
