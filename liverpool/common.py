@@ -14,12 +14,28 @@ class Color(object):
     4: 'DIAMOND',
   }
 
-  UNICODE_COLORS = {
+  WHITE_UNICODE_COLORS = {
     1: u'\u2663',
     2: u'\u2660',
     3: u'\u2665',
     4: u'\u2666',
   }
+
+  BLACK_UNICODE_COLORS = {
+    1: u'\u2667',
+    2: u'\u2664',
+    3: u'\u2661',
+    4: u'\u2662',
+  }
+
+  MIXED_UNICODE_COLORS = {
+    1: u'\u2667',
+    2: u'\u2664',
+    3: u'\u2665',
+    4: u'\u2666',
+  }
+
+  UNICODE_COLORS = MIXED_UNICODE_COLORS
 
   CLUB = 1
   SPADE = 2
@@ -105,8 +121,16 @@ class Card(object):
     for rank in range(self.rank, Rank.RANK_MAX + 1):
       yield Card(self.color, rank)
 
+  def _as_tuple(self):
+    return (self.rank, self.color)
+
   def __hash__(self):
-    return hash((self.color, self.rank))
+    return hash(self._as_tuple())
+
+  def __lt__(self, other):
+    if not isinstance(other, Card):
+      raise TypeError
+    return self._as_tuple() < other._as_tuple()
 
   def __eq__(self, other):
     if not isinstance(other, Card):

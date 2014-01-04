@@ -229,9 +229,11 @@ class Hand(object):
 
   def __unicode__(self):
     cards = []
-    for card, count in self.cards.items():
+    for card, count in sorted(self.cards.items()):
       for _ in range(count):
         cards.append(card)
+    for _ in range(self.jokers):
+      cards.append(Card.JOKER)
     return 'Hand(%s)' % ' '.join('%s' % card for card in cards)
 
   def __str__(self):
