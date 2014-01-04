@@ -1,6 +1,7 @@
 from liverpool.common import Card, Color, Objective
 from liverpool.hand import Hand
 
+"""
 h = Hand()
 h.put_card(Card(Color.SPADE, 7))
 h.put_card(Card(Color.DIAMOND, 7))
@@ -28,4 +29,4 @@ print()
 print('1/1 Lays:')
 for lay in h.iter_lays(objective):
   print(lay)
-
+"""

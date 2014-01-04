@@ -177,27 +177,50 @@ class Run(object):
 
 
 class Set(object):
-  __slots__ = ('rank', 'colors')
+  __slots__ = ('rank', 'jokers', 'colors')
 
   MIN = 3
+
+  @classmethod
+  def partition_colors(cls, colors):
+    """return a tuple of # jokers, remaining colors."""
+    return sum(color is None for color in colors), tuple(sorted(filter(None, colors)))
 
   def __init__(self, rank, colors):
     if not isinstance(colors, (tuple, list)):
       raise TypeError('Expected colors to be a tuple/list of colors or Nones.')
-    self.colors = tuple(color if color is None else Color.validate(color) for color in colors)
+    self.jokers, self.colors = self.partition_colors(
+        [color if color is None else Color.validate(color) for color in colors])
     self.rank = Rank.validate(rank)
 
+  def _as_tuple(self):
+    return (self.rank, self.jokers, self.colors)
+
   def __hash__(self):
-    return hash((self.rank, self.colors))
+    return hash(self._as_tuple())
+
+  def __lt__(self, other):
+    if not isinstance(other, Set):
+      raise TypeError
+    return self._as_tuple() < other._as_tuple()
+
+  #def __gt__(self, other):
+  #  if not isinstance(other, Set):
+  #    raise TypeError
+  #  return self._as_tuple() > other._as_tuple()
 
   def __eq__(self, other):
     if not isinstance(other, Set):
       return False
-    return self.colors == other.colors and self.rank == other.rank
+    return self.rank == other.rank and (
+        self.jokers == other.jokers and
+        self.colors == other.colors)
 
   def __iter__(self):
     for color in self.colors:
-      yield Card.JOKER if color is None else Card(color, self.rank)
+      yield Card(color, self.rank)
+    for _ in range(self.jokers):
+      yield Card.JOKER
 
   def __str__(self):
     return ' '.join(map(str, self))
