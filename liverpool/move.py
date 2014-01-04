@@ -1,33 +1,44 @@
 # hand.iter_melds() => Meld(...) => laying down cards.
 #
 # Table:
-#   deck
-#   discard
+#   deck [deck]
+#   discard pile [deck]
 #   players {pid => Player}
 #
 # Player:
 #   hand
 #   meld
 #
-# MeldUpdate:
-#   [seq of adds, extends]
+# PlayerView
+#   known_hand
+#   unknown_count
+#   meld
 #
-# Lay:
-#   pid
-#   meld_update
+# N.B.:
+#   there can be a player Player{hand,meld}
+#   and there can be a player_view PlayerView{known,hidden_count,meld}
+#   each player has {pid:player_view}, which can be used for monte carlo
+#
+# Meld:
+#   combos [ordered seq of Sets,Runs]
 #
 # Add:
-#   cards_to_add
+#   cards_to_add [possibly empty]
 #
 # Extend:
-#   left = [seq]
-#   right = [seq]
+#   left = [seq] [possibly empty]
+#   right = [seq] [possibly empty]
+#
+# MeldUpdate:
+#   [seq of adds, extends] (that can be zipped over Meld.combos)
+#
+# Lay:
+#   {pid => meld_update}
 #
 # Move:
 #   meld
-#   lay  # if meld is None, self.pid cannot be in lays, otherwise it can be.
+#   lay      # if meld is None, self.pid cannot be in lays, otherwise it can be.
 #   discard
-#
 #
 #
 # Generate all moves:
@@ -44,7 +55,7 @@
 #        unlay meld
 #
 #   if we have melded:
-#     lays = table.iter_valid_lays(self.hand, [all players]) 
+#     lays = table.iter_valid_lays(self.hand, [all players, self included])
 #     for each lay:
 #       apply lay
 #       for each non-playing discard:
@@ -52,9 +63,9 @@
 #       unapply lay
 #
 #
-# _is_valid_meld_update_map(map{pid:meld_update}):
+# _is_valid_lay(hand, lay):
 #   try:
-#     for pid, meld in map.items():
+#     for pid, meld_update in lay.items():
 #       table.apply(hand, pid, meld_update)
 #     rollback
 #     return True
@@ -62,18 +73,23 @@
 #     rollback
 #     return False
 #
+# def lays_from_meld_update_map(meld_update_map):
+#   to_product = []
+#   for pid, meld_update_list in meld_update_map.items():
+#     to_product.append([(pid, meld_update) for meld_update in meld_update_list])
+#   for tuples in itertools.product(*to_product):
+#     yield Lay(dict(tuples))
 #
-# iter_valid_lays(hand, map {pid: meld})
-#   lays = {}
-#   for pid, meld in map.items():
-#      combo_list = []
-#      _iter_valid_lays(hand, meld.combos, [], combo_list)
-#      lays[pid] = combo_list
-#   for combination in itertools.product(lays combinations):
-#      if _is_valid_meld_update_map(combination):
-#        yield combination
+# iter_valid_lays(hand, melds {pid: meld})
+#   meld_update_map = {}
+#   for pid, meld in melds.items():
+#      update_list = []
+#      _iter_valid_lays(hand, meld.combos, [], update_list)
+#      meld_update_map[pid] = update_list
+#   for lay in lays_from_meld_update_map(meld_update_map):
+#      if _is_valid_lay(lay):
+#        yield lay
 #   
-#
 # _iter_valid_lays(hand, combos, combo_stack, combo_list)
 #   if not combos:
 #     combo_list.append(combo_stack[:])
