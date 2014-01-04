@@ -2,7 +2,6 @@ from liverpool.common import Deck, Objective
 from liverpool.hand import Hand
 
 
-
 def simulate(
     num_runs=1,
     num_sets=1,
@@ -18,21 +17,13 @@ def simulate(
     for _ in range(dealt_cards):
       h.put_card(d.take())
 
-    #print('%5d :: %s' % (iteration, h))
-
     sets = list(h.iter_sets())
     if sets:
       total_with_sets += 1
-      #print('Sets:')
-      #for set_ in sets:
-      #  print(set_)
 
     runs = list(h.iter_runs())
     if runs:
       total_with_runs += 1
-      #print('Runs:')
-      #for run in runs:
-      #  print(run)
 
     objective = Objective(num_sets, num_runs)
 
@@ -42,10 +33,6 @@ def simulate(
 
       if any(len(lay) == dealt_cards for lay in lays):
         total_gone_out += 1
-
-      #print('%d/%d Lays:' % (num_sets, num_runs))
-      #for lay in lays:
-      #  print(lay)
 
   print('sets/runs/dealt %d/%d/%d iters/sets/runs/lays/out: %5d/%5d/%5d/%5d/%5d' % (
       num_sets, num_runs, dealt_cards,

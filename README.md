@@ -17,11 +17,6 @@ Right now it just has a basic move generator:
 >>> h.put_card(Card.JOKER)
 >>> h.put_card(Card(Color.HEART, 4))
 >>> h.put_card(Card(Color.HEART, 5))
->>> 
->>> print()
-
->>> print('Sets:')
-Sets:
 >>> for set_ in h.iter_sets():
 ...   print(set_)
 ... 
@@ -31,10 +26,6 @@ Sets:
 ?? 7♥ 7♦
 7♠ 7♥ 7♦
 ?? 7♠ 7♥ 7♦
->>> print()
-
->>> print('Runs:')
-Runs:
 >>> for run in h.iter_runs():
 ...   print(run)
 ... 
@@ -49,11 +40,6 @@ Runs:
 3♥ 4♥ 5♥ ?? 7♥
 4♥ 5♥ ?? 7♥
 >>> objective = Objective(1, 1)
->>> 
->>> print()
-
->>> print('1/1 Lays:')
-1/1 Lays:
 >>> for lay in h.iter_lays(objective):
 ...   print(lay)
 ... 
