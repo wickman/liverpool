@@ -18,7 +18,7 @@ from .common import (
     Rank,
     Run,
     Set,
-)  
+)
 
 
 class Hand(object):
@@ -30,6 +30,7 @@ class Hand(object):
 
   RUN_LUT = {}
   RUN_LUT_FILE = os.path.expanduser('~/.liverpool')
+  RUN_LUT_MAX_JOKERS = 2
 
   @classmethod
   def precompute_runs(cls):
@@ -56,7 +57,7 @@ class Hand(object):
         jokers.append(rank not in card_vector)
       return start, jokers
 
-    for total_jokers in range(3):
+    for total_jokers in range(cls.RUN_LUT_MAX_JOKERS + 1):
       cls.RUN_LUT[total_jokers] = defaultdict(list)
       for card_vector in range(2**13):
         running_lut = []
@@ -192,7 +193,7 @@ class Hand(object):
   def iter_runs(self):
     for color, rundex in self.rundex.items():
       vector = self.rundex_to_vector(rundex)
-      for start, jokers in self.RUN_LUT[self.jokers][vector]:
+      for start, jokers in self.RUN_LUT[min(self.jokers, self.RUN_LUT_MAX_JOKERS)][vector]:
         yield Run(Card(color, start + 2), jokers)
 
   def _iter_lays(self, strategy):
@@ -225,3 +226,10 @@ class Hand(object):
     for lay in self._iter_lays(strategy):
       if self._valid_lay(lay):
         yield lay
+
+  def __str__(self):
+    cards = []
+    for card, count in self.cards.items():
+      for _ in range(count):
+        cards.append(card)
+    return 'Hand(%s)' % ' '.join(map(str, cards))

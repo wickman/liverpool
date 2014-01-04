@@ -1,5 +1,7 @@
 from __future__ import print_function, unicode_literals
 
+import random
+
 
 class Color(object):
   class Error(Exception): pass
@@ -216,12 +218,36 @@ class Objective(object):
 
 class Lay(object):
   def __init__(self, sets=None, runs=None):
-    self.sets = tuple(sets) or []
-    self.runs = tuple(runs) or []
+    self.sets = tuple(sets) if sets is not None else ()
+    self.runs = tuple(runs) if runs is not None else ()
     if not all(isinstance(set_, Set) for set_ in self.sets):
       raise TypeError('sets must be instances of Set.')
     if not all(isinstance(run, Run) for run in self.runs):
       raise TypeError('runs must be instances of Run.')
 
+  def __len__(self):
+    return sum(len(list(s)) for s in self.sets) + sum(len(list(r)) for r in self.runs)
+
   def __str__(self):
     return 'Lay(%s)' % '    '.join(map(str, self.sets + self.runs))
+
+
+class Deck(object):
+  def __init__(self, count=1):
+    self.cards = []
+    for _ in range(count):
+      for rank in Rank.iter():
+        for color in Color.iter():
+          self.cards.append(Card(color, rank))
+      for _ in range(2):
+        self.cards.append(Card.JOKER)
+    self.shuffle()
+
+  def shuffle(self):
+    random.shuffle(self.cards)
+
+  def take(self):
+    return self.cards.pop()
+
+  def put(self, card):
+    self.cards.insert(0, card)
