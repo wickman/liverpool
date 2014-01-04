@@ -227,9 +227,13 @@ class Hand(object):
       if self._valid_lay(lay):
         yield lay
 
-  def __str__(self):
+  def __unicode__(self):
     cards = []
     for card, count in self.cards.items():
       for _ in range(count):
         cards.append(card)
-    return 'Hand(%s)' % ' '.join(map(str, cards))
+    return 'Hand(%s)' % ' '.join('%s' % card for card in cards)
+
+  def __str__(self):
+    return unicode(self).encode('utf-8')
+

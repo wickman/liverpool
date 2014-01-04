@@ -57,11 +57,11 @@ Lay(?? 7♠ 7♥ 7♦    2♥ 3♥ 4♥ 5♥)
 ```
 
 
-There is a sample application, test_deck.py that generates the probabilities
+There is a sample application, simulate_deals.py that generates the probabilities
 of going out off the deal for various objectives:
 
 ```console
-mba=liverpool=; pypy test_deck.py
+mba=liverpool=; PYTHONPATH=. pypy examples/simulate_deals.py
 sets/runs/dealt 2/0/10 iters/sets/runs/lays/out: 100000/54437/14345/ 9192/    0
 sets/runs/dealt 1/1/10 iters/sets/runs/lays/out: 100000/54549/14237/ 2078/    0
 sets/runs/dealt 0/2/10 iters/sets/runs/lays/out: 100000/54863/14387/   85/    0
