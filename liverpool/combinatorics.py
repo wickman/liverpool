@@ -1,13 +1,21 @@
 import itertools
 
 
-def unique_combinations(cards, number):
+def uniq(sorted_iterable):
   last = None
-  for comb in itertools.combinations(cards, number):
+  for comb in sorted_iterable:
     if comb == last:
       continue
     yield comb
     last = comb
+
+
+def sort_uniq(values):
+  return uniq(sorted(values))
+
+
+def unique_combinations(cards, number):
+  return uniq(itertools.combinations(cards, number))
 
 
 # part of the standard library as of 3.1.x, sigh.

@@ -127,3 +127,138 @@ for run_comb in set(itertools.combinations(runs, run_dim)):
 # unenumerated, then with all_sets, all_runs, when you select one for
 # consideration, you do not remove it from all_sets (so that each could be
 # considered in duplicate.)
+
+
+-------
+
+JOKERS = 0
+
+I think we need to precompute these
+
+
+right rundex
+. . . | . | . . . | . | . . | . . . . .
+0 1 1 2 1 1 0 1 1 2 1 1 1 1 1 0 0 0 0 0   -- 0 JOKERS :: 0 3-len
+1 2 2 3 2 2 1 2 2 3 2 2 2 2 2 1 1 1 1 1   -- 1 JOKERS :: 2 3-len
+2 3 3 4 3 3 2 3 3 4 3 3 3 3 3 2 2 2 2 2   -- 2 JOKERS :: 14 3-len, 2 4-len
+
+      * from this spot we can do runs of length 3 or 4
+      runs of length 3: 3 ? 5 6, ? ? 5, 3 ? ?
+      runs of length 4: 3 ? 5 ?
+
+    * from this spot we can do runs of length 3 (but really 4!)
+
+
+
+
+vary:
+  length
+    num_jokers
+
+
+the challenge is that if we have 3 ? 5, with spare jokers, we need to also try combinations of 3,5,?
+if we have 2 more jokers, then 3,5,?,?
+
+we can actually do this w/o using the rundex at all, theoretically
+
+
+
+
+left rundex
+. . . | . | . . . | . | . . | . . . . .
+0 0 0 1 1 2 1 1 0 1 1 2 1 1 1 1 1 0 0 0   -- the rundex can be considered Run.MIN - # of jokers necessary to do a left run
+1 1 1 2 2 3 2 2 1 2 2 3 2 2 2 2 2 1 1 1
+2 2 2 3 3 4 3 3 2 3 3 4 3 3 3 3 3 2 2 2
+
+
+for joker_count in range(0, jokers + 1):
+  for run_start, run_sum in enumerate(rundex):
+    if run_sum + joker_count
+
+
+
+# this should be done with bitvectors
+
+find_gaps:
+  gap_start = 0
+  gap = -1
+  for elt_index, elt in enumerate(rundex):
+    if elt:
+      for k in range(max(0, elt_index - jokers), min(len(rundex), elt_index + jokers + 1)):
+        if rundex[k] == 0:
+          rundex[k] = 1
+
+
+# derpderpderp
+
+assume we have 3 5 6 and 1 joker:
+       3 ? 5 6
+
+with 2 jokers:
+       3 ? 5 6 + ? ==>
+
+       [3, 5, 6, ?, ?] c 4 =>
+          3 5 6 ?
+
+
+      0 1 2 3 4 5 6 7 8 9 0 J Q K A
+      . . . | | | | | . | . | . . |
+1-sum 0 0 0 1 1 1 1 1 0 1 0 1 0 0 1
+2-sum 0 0 1 2 2 2 2 1 1 1 1 1 0 1 1
+3-sum 0 1 2 3 3 3 2 2 1 2 1 1 1 1 1
+4-sum 1 2 3 4 4 3 3 2 2 2 1 2 1 1 1
+5-sum 2 3 4 5 4 4 3 3 2 2 2 2 1 1 1
+6-sum 3 4 5 5 5 5 4 3 2 3 2 2 1 1 1
+
+discounted
+
+      0 1 2 3 4 5 6 7 8 9 0 J Q K A
+      . . . | | | | | . | . | . . |
+1-sum 1 1 1 0 0 0 0 0 1 0 1 0 1 1 0
+2-sum 2 2 1 0 0 0 0 1 1 1 1 1 2 1 1
+3-sum 3 2 1 0 0 0 1 1 2 1 2 2 2 2 2
+4-sum 3 2 1 0 0 1 1 2 2 2 3 2 3 3 3
+5-sum 3 2 1 0 1 1 2 2 3 3 3 3 4 4 4
+6-sum 3 2 1 1 1 1 2 3 4 3 4 4 5 5 5
+
+      0 1 2 3 4 5 6 7 8 9 0 J Q K A
+      . . . | | | | | . | . | . . |
+0-jok 0 0 0 5 4 3 2 1 0 1 0 1 0 0 1
+1-jok 1 1 6 7 6 5 4 3 2 3 2 2 1 1 1
+2-jok 2 7 8 9 8 7 6 5 4 4 3 4 3 2 1
+3-jok 8 9 A A 9 8 7 6 5 6 5 4 3 2 1
+4-jok
+5-jok
+6-jok
+
+
+start at 3
+you have 2 jokers
+this means you can generate run length 9
+
+
+# from a spot, we can iter over the following tuples:
+#   (run_length, jokers_required)
+#
+# 3 . 5 6 . .
+#
+# (4, 1)
+# (5, 2)
+# (6, 3) etc
+#
+# for run_start, rundex_value in rundex:
+#   for run_length in range(Run.MIN,
+#   necessary_jokers =
+#   for used_jokers in range(0, num_jokers + 1):
+#     run_length = rundex_value + used_jokers
+#     if run_length < Run.MIN:
+#       continue
+#
+
+---------------------------------
+
+13 cards -> 4096 possibilities
+for each of 0..6 jokers, enumerate possible run combinations.
+
+def bitvector_to_cards(vector):
+  chars =
