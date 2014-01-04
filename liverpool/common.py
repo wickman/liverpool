@@ -113,10 +113,13 @@ class Card(object):
       return False
     return self.color == other.color and self.rank == other.rank
 
-  def __str__(self):
+  def __unicode__(self):
     if self.color is None and self.rank is None:
       return '??'
     return '%s%s' % (Rank.to_str(self.rank), Color.to_str(self.color))
+
+  def __str__(self):
+    return unicode(self).encode('utf-8')
 
   def __repr__(self):
     if self.color is None and self.rank is None:
@@ -169,8 +172,11 @@ class Run(object):
     for offset, joker in enumerate(self.jokers):
       yield Card.JOKER if joker else Card(self.start.color, self.start.rank + offset)
 
+  def __unicode__(self):
+    return ' '.join('%s' % card for card in self)
+
   def __str__(self):
-    return ' '.join(map(str, self))
+    return unicode(self).encode('utf-8')
 
   def __repr__(self):
     return '%s.from_cards(%s)' % (self.__class__.__name__, ', '.join(map(repr, self)))
@@ -217,13 +223,16 @@ class Set(object):
         self.colors == other.colors)
 
   def __iter__(self):
-    for color in self.colors:
-      yield Card(color, self.rank)
     for _ in range(self.jokers):
       yield Card.JOKER
+    for color in self.colors:
+      yield Card(color, self.rank)
+
+  def __unicode__(self):
+    return ' '.join('%s' % card for card in self)
 
   def __str__(self):
-    return ' '.join(map(str, self))
+    return unicode(self).encode('utf-8')
 
   def __repr__(self):
     return '%s.from_cards(%s)' % (self.__class__.__name__, ', '.join(map(repr, self)))
@@ -251,8 +260,11 @@ class Lay(object):
   def __len__(self):
     return sum(len(list(s)) for s in self.sets) + sum(len(list(r)) for r in self.runs)
 
+  def __unicode__(self):
+    return 'Lay(%s)' % '   '.join('%s' % combo for combo in (self.sets + self.runs))
+
   def __str__(self):
-    return 'Lay(%s)' % '    '.join(map(str, self.sets + self.runs))
+    return unicode(self).encode('utf-8')
 
 
 class Deck(object):

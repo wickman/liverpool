@@ -32,6 +32,9 @@ def simulate(
       total_with_lays += 1
 
       if any(len(lay) == dealt_cards for lay in lays):
+        for lay in lays:
+          if len(lay) == dealt_cards:
+            print('Dealt %s => Went out with %s' % (h, lay))
         total_gone_out += 1
 
   print('sets/runs/dealt %d/%d/%d iters/sets/runs/lays/out: %5d/%5d/%5d/%5d/%5d' % (

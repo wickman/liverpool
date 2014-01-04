@@ -152,14 +152,14 @@ class Hand(object):
   def _map_run(self, run, method):
     if not isinstance(run, Run):
       raise TypeError('Expected run to be Run, got %s' % type(run))
-    for card, joker in zip(run.start.iter_rank(), run.jokers):
-      method(Card.JOKER if joker else card)
+    for card in run:
+      method(card)
 
   def _map_set(self, set_, method):
     if not isinstance(set_, Set):
       raise TypeError('Expected set to be Set, got %s' % type(set_))
-    for color in set_.colors:
-      method(Card.JOKER if color is None else Card(color, set_.rank))
+    for card in set_:
+      method(card)
 
   def put_run(self, run):
     self._map_run(run, self.put_card)
