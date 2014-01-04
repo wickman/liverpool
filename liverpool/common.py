@@ -234,11 +234,6 @@ class Set(object):
       raise TypeError
     return self._as_tuple() < other._as_tuple()
 
-  #def __gt__(self, other):
-  #  if not isinstance(other, Set):
-  #    raise TypeError
-  #  return self._as_tuple() > other._as_tuple()
-
   def __eq__(self, other):
     if not isinstance(other, Set):
       return False
