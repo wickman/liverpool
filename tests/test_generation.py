@@ -1,6 +1,7 @@
 from liverpool.common import (
     Card,
     Color,
+    Objective,
     Rank,
     Set,
 )
@@ -34,3 +35,27 @@ def test_set_simple():
       Set(2, (Color.SPADE, None, Color.DIAMOND)),
       Set(2, (Color.SPADE, Color.CLUB, None)),
   ])
+
+def test_lay_regression1():
+  """Set iterator should not return duplicates."""
+  h = Hand()
+  cards = [
+    Card(Color.CLUB, 2),
+    Card(Color.HEART, 2),
+    Card(Color.DIAMOND, 2),
+    Card(Color.SPADE, 5),
+    Card(Color.HEART, 5),
+    Card(Color.DIAMOND, Rank.KING),
+    Card.JOKER,
+    Card.JOKER,
+    Card.JOKER,
+    Card.JOKER,
+  ]
+
+  for card in cards:
+    h.put_card(card)
+
+  objective = Objective(3, 0)
+
+  # if set iterator returns dupes, this will be ~= 780
+  assert len(list(h.iter_lays(objective))) == 39

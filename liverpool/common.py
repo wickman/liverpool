@@ -224,7 +224,7 @@ class Set(object):
     self.rank = Rank.validate(rank)
 
   def _as_tuple(self):
-    return (self.rank, self.jokers, self.colors)
+    return (self.jokers + len(self.colors), self.rank, self.jokers, self.colors)
 
   def __hash__(self):
     return hash(self._as_tuple())
@@ -253,7 +253,11 @@ class Set(object):
       yield Card(color, self.rank)
 
   def __unicode__(self):
-    return ' '.join('%s' % card for card in self)
+    def render_joker(card):
+      if card == Card.JOKER:
+        return '%s?' % Rank.to_str(self.rank)
+      return card
+    return ' '.join('%s' % render_joker(card) for card in self)
 
   def __str__(self):
     return unicode(self).encode('utf-8')
@@ -280,6 +284,14 @@ class Lay(object):
       raise TypeError('sets must be instances of Set.')
     if not all(isinstance(run, Run) for run in self.runs):
       raise TypeError('runs must be instances of Run.')
+
+  def _as_tuple(self):
+    return tuple(self.sets + self.runs)
+
+  def __eq__(self, other):
+    if not isinstance(other, Lay):
+      return False
+    return self._as_tuple() == other._as_tuple()
 
   def __len__(self):
     return sum(len(list(s)) for s in self.sets) + sum(len(list(r)) for r in self.runs)

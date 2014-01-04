@@ -5,7 +5,9 @@ def uniq(sorted_iterable):
   last = None
   for comb in sorted_iterable:
     if comb == last:
+      #print('Skipping dupe combination: %s' % (comb,))
       continue
+    #print('Yielding new combination: %s (last: %s)' % (comb, last))
     yield comb
     last = comb
 

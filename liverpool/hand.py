@@ -9,6 +9,7 @@ from .combinatorics import (
     combinations_with_replacement,
     unique_combinations,
     sort_uniq,
+    uniq,
 )
 from .common import (
     Card,
@@ -174,13 +175,16 @@ class Hand(object):
     self._map_set(set_, self.take_card)
 
   def iter_sets(self):
-    for rank, colors in enumerate(self.setdex):
-      if rank < 2:
-        continue
-      jokered_colors = [None] * self.jokers + sorted(colors)
-      for set_size in range(Set.MIN, len(jokered_colors) + 1):
-        for combination in unique_combinations(jokered_colors, set_size):
-          yield Set(rank, combination)
+    def _internal_iter():
+      for rank, colors in enumerate(self.setdex[:]):
+        if rank < 2:
+          continue
+        jokered_colors = [None] * self.jokers + sorted(colors)
+        for set_size in range(Set.MIN, len(jokered_colors) + 1):
+          for combination in unique_combinations(jokered_colors, set_size):
+            yield Set(rank, combination)
+    # TODO(wickman) Come up with a stable unique iterator
+    return sort_uniq(_internal_iter())
 
   @classmethod
   def rundex_to_vector(cls, rundex):
@@ -191,23 +195,40 @@ class Hand(object):
     return value
 
   def iter_runs(self):
-    for color, rundex in self.rundex.items():
+    for color, rundex in self.rundex.copy().items():
       vector = self.rundex_to_vector(rundex)
       for start, jokers in self.RUN_LUT[min(self.jokers, self.RUN_LUT_MAX_JOKERS)][vector]:
         yield Run(Card(color, start + 2), jokers)
 
-  def _iter_lays(self, strategy):
-    set_combinator = combinations_with_replacement(self.iter_sets(), strategy.num_sets)
-    run_combinator = combinations_with_replacement(self.iter_runs(), strategy.num_runs)
+  def _take_committed(self, combos, method, commit=False):
+    try:
+      for combo in combos:
+        method(combo)
+      if commit:
+        self.commit()
+      else:
+        self.rollback()
+      return True
+    except self.InvalidTake:
+      self.rollback()
+      return False
+
+  def iter_lays(self, strategy):
     if strategy.num_runs == 0:
-      for sets in set_combinator:
-        yield Lay(sets, None)
+      for sets in uniq(combinations_with_replacement(self.iter_sets(), strategy.num_sets)):
+        if self._take_committed(sets, self.take_set, commit=False):
+          yield Lay(sets, None)
     elif strategy.num_sets == 0:
-      for runs in run_combinator:
-        yield Lay(None, runs)
+      for runs in uniq(combinations_with_replacement(self.iter_runs(), strategy.num_runs)):
+        if self._take_committed(runs, self.take_run, commit=False):
+          yield Lay(None, runs)
     else:
-      for sets, runs in itertools.product(set_combinator, run_combinator):
-        yield Lay(sets, runs)
+      for sets in uniq(combinations_with_replacement(self.iter_sets(), strategy.num_sets)):
+        if self._take_committed(sets, self.take_set, commit=True):
+          for runs in uniq(combinations_with_replacement(self.iter_runs(), strategy.num_runs)):
+            if self._take_committed(runs, self.take_run, commit=False):
+              yield Lay(sets, runs)
+          self.undo()
 
   def _valid_lay(self, lay):
     try:
@@ -221,11 +242,6 @@ class Hand(object):
 
     self.rollback()
     return True
-
-  def iter_lays(self, strategy):
-    for lay in self._iter_lays(strategy):
-      if self._valid_lay(lay):
-        yield lay
 
   def __unicode__(self):
     cards = []
