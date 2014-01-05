@@ -79,11 +79,11 @@ class Rank(object):
     14: 'ACE',
   }
 
-  RANK_MIN = 2
+  MIN = 2
   JACK = 11
   QUEEN = 12
   KING = 13
-  ACE = RANK_MAX = 14
+  ACE = MAX = 14
 
   @classmethod
   def validate(cls, rank):
@@ -104,13 +104,13 @@ class Rank(object):
 
   @classmethod
   def iter(cls):
-    return range(cls.RANK_MIN, cls.RANK_MAX + 1)
+    return range(cls.MIN, cls.MAX + 1)
 
 
 class Card(object):
   __slots__ = ('color', 'rank')
 
-  def __init__(self, color, rank):
+  def __init__(self, rank, color):
     self.color = color if color is None else Color.validate(color)
     self.rank = rank if rank is None else Rank.validate(rank)
 
@@ -118,8 +118,8 @@ class Card(object):
     # only support rank iteration for non-jokers
     assert self.color is not None
     assert self.rank is not None
-    for rank in range(self.rank, Rank.RANK_MAX + 1):
-      yield Card(self.color, rank)
+    for rank in range(self.rank, Rank.MAX + 1):
+      yield Card(rank, self.color)
 
   def _as_tuple(self):
     return (self.rank, self.color)
@@ -194,7 +194,7 @@ class Run(object):
 
   def __iter__(self):
     for offset, joker in enumerate(self.jokers):
-      yield Card.JOKER if joker else Card(self.start.color, self.start.rank + offset)
+      yield Card.JOKER if joker else Card(self.start.rank + offset, self.start.color)
 
   def __unicode__(self):
     return ' '.join('%s' % card for card in self)
@@ -245,7 +245,7 @@ class Set(object):
     for _ in range(self.jokers):
       yield Card.JOKER
     for color in self.colors:
-      yield Card(color, self.rank)
+      yield Card(self.rank, color)
 
   def __unicode__(self):
     def render_joker(card):
@@ -271,7 +271,7 @@ class Objective(object):
     self.num_runs = num_runs
 
 
-class Lay(object):
+class Meld(object):
   def __init__(self, sets=None, runs=None):
     self.sets = tuple(sets) if sets is not None else ()
     self.runs = tuple(runs) if runs is not None else ()
@@ -284,7 +284,7 @@ class Lay(object):
     return tuple(self.sets + self.runs)
 
   def __eq__(self, other):
-    if not isinstance(other, Lay):
+    if not isinstance(other, Meld):
       return False
     return self._as_tuple() == other._as_tuple()
 
@@ -292,7 +292,7 @@ class Lay(object):
     return sum(len(list(s)) for s in self.sets) + sum(len(list(r)) for r in self.runs)
 
   def __unicode__(self):
-    return 'Lay(%s)' % '   '.join('%s' % combo for combo in (self.sets + self.runs))
+    return 'Meld(%s)' % '   '.join('%s' % combo for combo in (self.sets + self.runs))
 
   def __str__(self):
     return unicode(self).encode('utf-8')
@@ -304,7 +304,7 @@ class Deck(object):
     for _ in range(count):
       for rank in Rank.iter():
         for color in Color.iter():
-          self.cards.append(Card(color, rank))
+          self.cards.append(Card(rank, color))
       for _ in range(2):
         self.cards.append(Card.JOKER)
     self.shuffle()

@@ -1,18 +1,18 @@
 from liverpool.common import Deck, Objective
-from liverpool.hand import Hand
+from liverpool.hand import Hand, FastHand
 
 
 def simulate(
     num_runs=1,
     num_sets=1,
-    iterations=100000,
+    iterations=10000,
     decks=2,
     dealt_cards=10):
 
   total_with_sets = total_with_runs = total_with_lays = total_gone_out = 0
 
   for iteration in range(iterations):
-    h = Hand()
+    h = FastHand()
     d = Deck(count=decks)
     for _ in range(dealt_cards):
       h.put_card(d.take())
@@ -27,7 +27,7 @@ def simulate(
 
     objective = Objective(num_sets, num_runs)
 
-    lays = list(h.iter_lays(objective))
+    lays = list(h.iter_melds(objective))
     if lays:
       total_with_lays += 1
 

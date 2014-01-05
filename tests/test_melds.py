@@ -27,6 +27,6 @@ objective = Objective(1, 1)
 
 print()
 print('1/1 Lays:')
-for lay in h.iter_lays(objective):
+for lay in h.iter_melds(objective):
   print(lay)
 """

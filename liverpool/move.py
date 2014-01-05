@@ -8,6 +8,8 @@
 # Player:
 #   hand
 #   meld
+#   {pid => player_view}
+#   deck_view
 #
 # PlayerView
 #   known_hand
@@ -34,6 +36,11 @@
 #
 # Lay:
 #   {pid => meld_update}
+#
+# PlayerTake:
+#   pid
+#   card [Card or None]
+#   deck cards [0, 1 or 2]
 #
 # Move:
 #   meld
@@ -89,7 +96,7 @@
 #   for lay in lays_from_meld_update_map(meld_update_map):
 #      if _is_valid_lay(lay):
 #        yield lay
-#   
+#
 # _iter_valid_lays(hand, combos, combo_stack, combo_list)
 #   if not combos:
 #     combo_list.append(combo_stack[:])
@@ -106,3 +113,64 @@
 #       hand.take_extend(extend)
 #       iter_valid_lays(hand, combos[1:], combo_stack, combo_list)
 #       hand.put_extend(extend)
+#
+#
+#
+"""
+Gameplay proceeds in the following manner:
+
+
+pids in [0..N-1]
+
+Table is initialized with:
+  deck
+  discard pile
+  {pid => player} map
+  turn = 0
+
+
+PlayerTake:
+  pid
+  card
+  deck_cards
+
+
+def negotiate():
+  takes = []
+
+  first_player = order(players, turn)[0]
+
+  if discard.top():
+    for player in order(players, turn):
+      if player.wants(discard.top()):
+        if player == first_player:
+          player.take(discard.top())
+          return [PlayerTake(player.pid, discard.top(), 0)]
+        else:
+          player.buy(discard.top(), deck.pop(), deck.pop())
+          takes.append(PlayerTake(player.pid, discard.top(), 2))
+          break
+
+  first_player.take(deck.pop())
+  takes.append(PlayerTake(first_player.pid, None, 1))
+
+
+def play():
+  discard.append(deck.pop())
+
+  while all(player.live() for player in self.players.values):
+    takes = negotiate()
+    for player in players:
+      player.apply_takes([take for take in takes if take.pid != player.pid])
+    first_player = order(players, turn)[0]
+    for move in first_player.get_move():
+      for player in players:
+        player.apply(first_player.pid, move)
+    turn += 1
+
+
+apply_move(pid, move):
+  for player in players:
+    player.apply_move(pid, move)
+
+"""

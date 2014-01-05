@@ -5,15 +5,13 @@ def uniq(sorted_iterable):
   last = None
   for comb in sorted_iterable:
     if comb == last:
-      #print('Skipping dupe combination: %s' % (comb,))
       continue
-    #print('Yielding new combination: %s (last: %s)' % (comb, last))
     yield comb
     last = comb
 
 
-def sort_uniq(values):
-  return uniq(sorted(values))
+def sort_uniq(values, **kw):
+  return uniq(sorted(values, **kw))
 
 
 def unique_combinations(cards, number):

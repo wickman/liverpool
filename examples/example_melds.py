@@ -4,15 +4,15 @@ from liverpool.common import Card, Color, Objective
 from liverpool.hand import Hand
 
 h = Hand()
-h.put_card(Card(Color.SPADE, 7))
-h.put_card(Card(Color.DIAMOND, 7))
-h.put_card(Card(Color.HEART, 7))
-h.put_card(Card(Color.HEART, 2))
-h.put_card(Card(Color.HEART, 3))
-h.put_card(Card(Color.CLUB, 3))
+h.put_card(Card(7, Color.SPADE))
+h.put_card(Card(7, Color.DIAMOND))
+h.put_card(Card(7, Color.HEART))
+h.put_card(Card(2, Color.HEART))
+h.put_card(Card(3, Color.HEART))
+h.put_card(Card(3, Color.CLUB))
 h.put_card(Card.JOKER)
-h.put_card(Card(Color.HEART, 4))
-h.put_card(Card(Color.HEART, 5))
+h.put_card(Card(4, Color.HEART))
+h.put_card(Card(5, Color.HEART))
 
 print()
 print('Sets:')
@@ -27,6 +27,6 @@ for run in h.iter_runs():
 objective = Objective(1, 1)
 
 print()
-print('1/1 Lays:')
-for lay in h.iter_lays(objective):
+print('1/1 Melds:')
+for lay in h.iter_melds(objective):
   print(lay)

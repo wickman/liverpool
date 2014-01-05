@@ -10,15 +10,15 @@ from liverpool.hand import Hand
 
 def test_set_simple():
   h1 = Hand()
-  h1.put_card(Card(Color.DIAMOND, 2))
-  h1.put_card(Card(Color.CLUB, 2))
-  h1.put_card(Card(Color.SPADE, 2))
+  h1.put_card(Card(2, Color.DIAMOND))
+  h1.put_card(Card(2, Color.CLUB))
+  h1.put_card(Card(2, Color.SPADE))
   sets1 = list(h1.iter_sets())
 
   h2 = Hand()
-  h2.put_card(Card(Color.SPADE, 2))
-  h2.put_card(Card(Color.CLUB, 2))
-  h2.put_card(Card(Color.DIAMOND, 2))
+  h2.put_card(Card(2, Color.SPADE))
+  h2.put_card(Card(2, Color.CLUB))
+  h2.put_card(Card(2, Color.DIAMOND))
   sets2 = list(h2.iter_sets())
 
   assert len(sets1) == 1
@@ -40,12 +40,12 @@ def test_lay_regression1():
   """Set iterator should not return duplicates."""
   h = Hand()
   cards = [
-    Card(Color.CLUB, 2),
-    Card(Color.HEART, 2),
-    Card(Color.DIAMOND, 2),
-    Card(Color.SPADE, 5),
-    Card(Color.HEART, 5),
-    Card(Color.DIAMOND, Rank.KING),
+    Card(2, Color.CLUB),
+    Card(2, Color.HEART),
+    Card(2, Color.DIAMOND),
+    Card(5, Color.SPADE),
+    Card(5, Color.HEART),
+    Card(Rank.KING, Color.DIAMOND),
     Card.JOKER,
     Card.JOKER,
     Card.JOKER,
@@ -58,4 +58,4 @@ def test_lay_regression1():
   objective = Objective(3, 0)
 
   # if set iterator returns dupes, this will be ~= 780
-  assert len(list(h.iter_lays(objective))) == 39
+  assert len(list(h.iter_melds(objective))) == 39

@@ -1,25 +1,59 @@
 from __future__ import print_function, unicode_literals
 
 from collections import defaultdict
+import contextlib
+import gzip
 import itertools
+import json
 import os
-import pickle
 
 from .combinatorics import (
     combinations_with_replacement,
-    unique_combinations,
     sort_uniq,
     uniq,
+    unique_combinations,
 )
 from .common import (
     Card,
     Color,
-    Lay,
+    Meld,
     Objective,
     Rank,
     Run,
     Set,
 )
+
+
+class sorted_list(list):
+  def __iter__(self):
+    return iter(sorted(super(sorted_list, self).__iter__()))
+
+
+class Setdex(object):
+  # Index set count.
+  __slots__ = ('value',)
+
+  NUM_BITS = 2 # support 0, 1, 2 decks.  NUM_BITS=3 is 0-7 decks. etc
+  SET_MASK = (1 << NUM_BITS) - 1
+
+  def __init__(self, value=0):
+    self.value = value
+
+  def append(self, color):
+    self.value += 1 << (self.NUM_BITS * color)
+
+  def remove(self, color):
+    self.value -= 1 << (self.NUM_BITS * color)
+
+  def __iter__(self):
+    for color in Color.iter():
+      count = (self.value & (self.SET_MASK << (self.NUM_BITS * color))) >> (self.NUM_BITS * color)
+      for _ in range(count):
+        yield color
+
+
+class Rundex(object):
+  pass
 
 
 class Hand(object):
@@ -29,76 +63,66 @@ class Hand(object):
 
   __slots__ = ('cards', 'stack', 'setdex', 'rundex', 'jokers')
 
-  RUN_LUT = {}
-  RUN_LUT_FILE = os.path.expanduser('~/.liverpool')
-  RUN_LUT_MAX_JOKERS = 2
+  SET_CLASS = sorted_list
 
   @classmethod
-  def precompute_runs(cls):
-    print('Generating run lookup tables.')
-
-    def vector_to_cards(vector):
-      for k in range(13):
-        if vector & (1 << k):
-          yield k
-
-    def meld(card_vector, joker_vector):
-      start = min(card_vector)
-      if joker_vector:
-        start = min(start, min(joker_vector))
-      end = max(card_vector)
-      if joker_vector:
-        end = max(end, max(joker_vector))
-      jokers = []
-      for rank in range(start, end + 1):
-        if rank in card_vector and rank in joker_vector:
-          raise ValueError
-        if rank not in card_vector and rank not in joker_vector:
-          raise ValueError
-        jokers.append(rank not in card_vector)
-      return start, jokers
-
-    for total_jokers in range(cls.RUN_LUT_MAX_JOKERS + 1):
-      cls.RUN_LUT[total_jokers] = defaultdict(list)
-      for card_vector in range(2**13):
-        running_lut = []
-        ranks = list(vector_to_cards(card_vector))
-        for num_jokers in range(total_jokers + 1):
-          for rank_selection in range(Run.MIN - num_jokers, len(ranks) + 1):
-            for selected_cards in unique_combinations(ranks, rank_selection):
-              for joker_vector in unique_combinations(range(13), num_jokers):
-                try:
-                  start, jokers = meld(selected_cards, joker_vector)
-                except ValueError:
-                  continue
-                if len(jokers) < Run.MIN:
-                  continue
-                running_lut.append((start, tuple(jokers)))
-        cls.RUN_LUT[total_jokers][card_vector] = list(sort_uniq(running_lut))
+  def meld(cls, card_vector, joker_vector):
+    """If a card vector and a joker_vector melds into a run, return the start/jokers."""
+    start = min(card_vector)
+    if joker_vector:
+      start = min(start, min(joker_vector))
+    end = max(card_vector)
+    if joker_vector:
+      end = max(end, max(joker_vector))
+    jokers = []
+    for rank in range(start, end + 1):
+      if rank in card_vector and rank in joker_vector:
+        raise ValueError
+      if rank not in card_vector and rank not in joker_vector:
+        raise ValueError
+      jokers.append(rank not in card_vector)
+    return start, jokers
 
   @classmethod
-  def save_lut(cls):
-    with open(cls.RUN_LUT_FILE, 'wb') as fp:
-      pickle.dump(cls.RUN_LUT, fp)
+  def ranks_from_rundex(cls, rundex, jokers=0):
+    """Returns (start,joker) arrays for a particular rundex/#jokers."""
+    total_jokers = min(2, jokers)  # cap runs at 2 jokers
+    runs = []
+    ranks = [rank for rank, count in enumerate(rundex) if count]
+    for num_jokers in range(total_jokers + 1):
+      for rank_selection in range(Run.MIN - num_jokers, len(ranks) + 1):
+        for selected_cards in unique_combinations(ranks, rank_selection):
+          # this could be improved with some thought
+          for joker_vector in unique_combinations(Rank.iter(), num_jokers):
+            try:
+              start, jokers = cls.meld(selected_cards, joker_vector)
+            except ValueError:
+              continue
+            if len(jokers) < Run.MIN:
+              continue
+            runs.append((start, tuple(jokers)))
+    return sort_uniq(runs)
 
   @classmethod
-  def load_lut(cls):
-    with open(cls.RUN_LUT_FILE, 'rb') as fp:
-      cls.RUN_LUT = pickle.load(fp)
+  def sets_from_setdex(cls, setdex, jokers=0):
+    sets = []
 
-  @classmethod
-  def maybe_setup_hand(cls):
-    if not cls.RUN_LUT:
-      if os.path.exists(cls.RUN_LUT_FILE):
-        cls.load_lut()
-      else:
-        cls.precompute_runs()
-        cls.save_lut()
+    def orderable_combination(tup):
+      return tuple((tup[0], tuple(-1 if val is None else val for val in tup[1])))
+
+    for rank, colors in enumerate(setdex):
+      if rank < 2:
+        continue
+      jokered_colors = [None] * jokers + list(colors)
+      for set_size in range(Set.MIN, len(jokered_colors) + 1):
+        for combination in unique_combinations(jokered_colors, set_size):
+          sets.append((rank, combination))
+
+    return sort_uniq(sets, key=orderable_combination)
 
   def __init__(self, cards=None):
-    self.maybe_setup_hand()
-    self.rundex = dict((color, [0] * (Rank.RANK_MAX + 1)) for color in Color.iter())
-    self.setdex = [[] for k in range(Rank.RANK_MAX + 1)]
+    self.rundex = dict((color, [0] * (Rank.MAX + 1)) for color in Color.iter())
+    self.setdex = [self.SET_CLASS() for k in range(Rank.MAX + 1)]
     self.cards = defaultdict(int)
     self.jokers = 0
     self.stack = [None]   # stack of takes, None represents start of a "transaction"
@@ -175,30 +199,13 @@ class Hand(object):
     self._map_set(set_, self.take_card)
 
   def iter_sets(self):
-    def _internal_iter():
-      for rank, colors in enumerate(self.setdex[:]):
-        if rank < 2:
-          continue
-        jokered_colors = [None] * self.jokers + sorted(colors)
-        for set_size in range(Set.MIN, len(jokered_colors) + 1):
-          for combination in unique_combinations(jokered_colors, set_size):
-            yield Set(rank, combination)
-    # TODO(wickman) Come up with a stable unique iterator
-    return sort_uniq(_internal_iter())
-
-  @classmethod
-  def rundex_to_vector(cls, rundex):
-    value = 0
-    for k, count in enumerate(rundex):
-      if count:
-        value |= (1 << (k - 2))
-    return value
+    for rank, combination in self.sets_from_setdex(self.setdex[:], self.jokers):
+      yield Set(rank, combination)
 
   def iter_runs(self):
     for color, rundex in self.rundex.copy().items():
-      vector = self.rundex_to_vector(rundex)
-      for start, jokers in self.RUN_LUT[min(self.jokers, self.RUN_LUT_MAX_JOKERS)][vector]:
-        yield Run(Card(color, start + 2), jokers)
+      for start, jokers in self.ranks_from_rundex(rundex, self.jokers):
+        yield Run(Card(start, color), jokers)
 
   def _take_committed(self, combos, method, commit=False):
     try:
@@ -213,28 +220,28 @@ class Hand(object):
       self.rollback()
       return False
 
-  def iter_lays(self, strategy):
+  def iter_melds(self, strategy):
     if strategy.num_runs == 0:
       for sets in uniq(combinations_with_replacement(self.iter_sets(), strategy.num_sets)):
         if self._take_committed(sets, self.take_set, commit=False):
-          yield Lay(sets, None)
+          yield Meld(sets, None)
     elif strategy.num_sets == 0:
       for runs in uniq(combinations_with_replacement(self.iter_runs(), strategy.num_runs)):
         if self._take_committed(runs, self.take_run, commit=False):
-          yield Lay(None, runs)
+          yield Meld(None, runs)
     else:
       for sets in uniq(combinations_with_replacement(self.iter_sets(), strategy.num_sets)):
         if self._take_committed(sets, self.take_set, commit=True):
           for runs in uniq(combinations_with_replacement(self.iter_runs(), strategy.num_runs)):
             if self._take_committed(runs, self.take_run, commit=False):
-              yield Lay(sets, runs)
+              yield Meld(sets, runs)
           self.undo()
 
-  def _valid_lay(self, lay):
+  def _valid_meld(self, meld):
     try:
-      for set_ in lay.sets:
+      for set_ in meld.sets:
         self.take_set(set_)
-      for run in lay.runs:
+      for run in meld.runs:
         self.take_run(run)
     except self.InvalidTake:
       self.rollback()
@@ -255,3 +262,96 @@ class Hand(object):
   def __str__(self):
     return unicode(self).encode('utf-8')
 
+
+class FastHand(Hand):
+  RUN_LUT = {}
+  RUN_LUT_FILE = os.path.expanduser('~/.liverpool_runs')
+  RUN_LUT_MAX_JOKERS = 2
+
+  SET_LUT = {}
+  SET_LUT_FILE = os.path.expanduser('~/.liverpool_sets')
+  SET_LUT_MAX_JOKERS = 6
+
+  SET_CLASS = Setdex
+
+  @classmethod
+  def rundex_to_vector(cls, rundex):
+    value = 0
+    for k, count in enumerate(rundex):
+      if count:
+        value |= (1 << (k - Rank.MIN))
+    return value
+
+  @classmethod
+  def vector_to_rundex(cls, vector):
+    for k in range(Rank.MAX + 1):
+      if k < Rank.MIN:
+        yield 0
+      else:
+        yield 1 if vector & (1 << (k - Rank.MIN)) else 0
+
+  @classmethod
+  def precompute(cls):
+    print('Precomputing runs.')
+    for total_jokers in range(cls.RUN_LUT_MAX_JOKERS + 1):
+      cls.RUN_LUT[total_jokers] = {}
+      for card_vector in range(2**(Rank.MAX - Rank.MIN + 1)):
+        rundex = list(cls.vector_to_rundex(card_vector))
+        cls.RUN_LUT[total_jokers][card_vector] = list(
+            cls.ranks_from_rundex(rundex, total_jokers))
+
+    """
+    print('Precomputing sets.')
+    for total_jokers in range(cls.SET_LUT_MAX_JOKERS + 1):
+      cls.SET_LUT[total_jokers] = {}
+      for card_vector in range(2**(Rank.MAX - Rank.MIN + 1)):
+        rundex = list(cls.vector_to_rundex(card_vector))
+        cls.RUN_LUT[total_jokers][card_vector] = list(
+            cls.ranks_from_rundex(rundex, total_jokers))
+    """
+
+  # Consider a more compact representation, e.g. start,len,bitvector
+  @classmethod
+  def save_luts(cls):
+    with contextlib.closing(gzip.GzipFile(cls.RUN_LUT_FILE, 'wb')) as fp:
+      fp.write(json.dumps(cls.RUN_LUT))
+    """
+    with contextlib.closing(gzip.GzipFile(cls.SET_LUT_FILE, 'wb')) as fp:
+      fp.write(json.dumps(cls.SET_LUT))
+    """
+
+  @classmethod
+  def load_luts(cls):
+    with contextlib.closing(gzip.GzipFile(cls.RUN_LUT_FILE, 'rb')) as fp:
+      # json dictionary keys can only be strings, so we must coerce
+      for num_jokers, lut in json.load(fp).items():
+        cls.RUN_LUT[int(num_jokers)] = {}
+        for card_vector, runs in lut.items():
+          cls.RUN_LUT[int(num_jokers)][int(card_vector)] = runs
+    """
+    with contextlib.closing(gzip.GzipFile(cls.SET_LUT_FILE, 'rb')) as fp:
+      # json dictionary keys can only be strings, so we must coerce
+      for num_jokers, lut in json.load(fp).items():
+        cls.SET_LUT[int(num_jokers)] = {}
+        for card_vector, runs in lut.items():
+          cls.RUN_LUT[int(num_jokers)][int(card_vector)] = runs
+    """
+
+  @classmethod
+  def maybe_setup_hand(cls):
+    if not cls.RUN_LUT:
+      if os.path.exists(cls.RUN_LUT_FILE):
+        cls.load_luts()
+      else:
+        cls.precompute()
+        cls.save_luts()
+
+  def __init__(self, cards=None):
+    self.maybe_setup_hand()
+    super(FastHand, self).__init__()
+
+  def iter_runs(self):
+    for color, rundex in self.rundex.copy().items():
+      vector = self.rundex_to_vector(rundex)
+      for start, jokers in self.RUN_LUT[min(self.jokers, self.RUN_LUT_MAX_JOKERS)][vector]:
+        yield Run(Card(start, color), jokers)
