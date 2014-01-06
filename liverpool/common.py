@@ -1,46 +1,55 @@
 from __future__ import print_function, unicode_literals
 
 import random
+import sys
+
+
+if sys.version_info[0] == 2:
+  def unicode(s):
+    return s.__unicode__().encode('utf-8')
+else:
+  def unicode(s):
+    return s.__unicode__()
 
 
 class Color(object):
   class Error(Exception): pass
   class InvalidColor(Error): pass
 
+  CLUB = 0
+  SPADE = 1
+  HEART = 2
+  DIAMOND = 3
+
   COLORS = {
-    1: 'CLUB',
-    2: 'SPADE',
-    3: 'HEART',
-    4: 'DIAMOND',
+    CLUB: 'CLUB',
+    SPADE: 'SPADE',
+    HEART: 'HEART',
+    DIAMOND: 'DIAMOND',
   }
 
   WHITE_UNICODE_COLORS = {
-    1: u'\u2663',
-    2: u'\u2660',
-    3: u'\u2665',
-    4: u'\u2666',
+    CLUB: u'\u2663',
+    SPADE: u'\u2660',
+    HEART: u'\u2665',
+    DIAMOND: u'\u2666',
   }
 
   BLACK_UNICODE_COLORS = {
-    1: u'\u2667',
-    2: u'\u2664',
-    3: u'\u2661',
-    4: u'\u2662',
+    CLUB: u'\u2667',
+    SPADE: u'\u2664',
+    HEART: u'\u2661',
+    DIAMOND: u'\u2662',
   }
 
   MIXED_UNICODE_COLORS = {
-    1: u'\u2667',
-    2: u'\u2664',
-    3: u'\u2665',
-    4: u'\u2666',
+    CLUB: u'\u2667',
+    SPADE: u'\u2664',
+    HEART: u'\u2665',
+    DIAMOND: u'\u2666',
   }
 
   UNICODE_COLORS = MIXED_UNICODE_COLORS
-
-  CLUB = 1
-  SPADE = 2
-  HEART = 3
-  DIAMOND = 4
 
   @classmethod
   def validate(cls, color):
@@ -143,7 +152,7 @@ class Card(object):
     return '%s%s' % (Rank.to_str(self.rank), Color.to_str(self.color))
 
   def __str__(self):
-    return unicode(self).encode('utf-8')
+    return unicode(self)
 
   def __repr__(self):
     if self.color is None and self.rank is None:
@@ -200,7 +209,7 @@ class Run(object):
     return ' '.join('%s' % card for card in self)
 
   def __str__(self):
-    return unicode(self).encode('utf-8')
+    return unicode(self)
 
   def __repr__(self):
     return '%s.from_cards(%s)' % (self.__class__.__name__, ', '.join(map(repr, self)))
@@ -214,11 +223,14 @@ class Set(object):
   @classmethod
   def partition_colors(cls, colors):
     """return a tuple of # jokers, remaining colors."""
-    return sum(color is None for color in colors), tuple(sorted(filter(None, colors)))
+    return (sum(color is None for color in colors),
+            tuple(sorted([color for color in colors if color is not None])))
 
   def __init__(self, rank, colors):
     if not isinstance(colors, (tuple, list)):
       raise TypeError('Expected colors to be a tuple/list of colors or Nones.')
+    if len(colors) < self.MIN:
+      raise ValueError('Set not large enough!')
     self.jokers, self.colors = self.partition_colors(
         [color if color is None else Color.validate(color) for color in colors])
     self.rank = Rank.validate(rank)
@@ -255,7 +267,7 @@ class Set(object):
     return ' '.join('%s' % render_joker(card) for card in self)
 
   def __str__(self):
-    return unicode(self).encode('utf-8')
+    return unicode(self)
 
   def __repr__(self):
     return '%s.from_cards(%s)' % (self.__class__.__name__, ', '.join(map(repr, self)))
@@ -295,7 +307,7 @@ class Meld(object):
     return 'Meld(%s)' % '   '.join('%s' % combo for combo in (self.sets + self.runs))
 
   def __str__(self):
-    return unicode(self).encode('utf-8')
+    return unicode(self)
 
 
 class Deck(object):

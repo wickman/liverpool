@@ -5,7 +5,7 @@ from liverpool.hand import Hand, FastHand
 def simulate(
     num_runs=1,
     num_sets=1,
-    iterations=10000,
+    iterations=100000,
     decks=2,
     dealt_cards=10):
 

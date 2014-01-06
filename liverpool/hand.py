@@ -21,6 +21,7 @@ from .common import (
     Rank,
     Run,
     Set,
+    unicode
 )
 
 
@@ -35,6 +36,11 @@ class Setdex(object):
 
   NUM_BITS = 2 # support 0, 1, 2 decks.  NUM_BITS=3 is 0-7 decks. etc
   SET_MASK = (1 << NUM_BITS) - 1
+
+  @classmethod
+  def iter_all(cls):
+    for value in range(2**(cls.NUM_BITS * 4)):
+      yield cls(value)
 
   def __init__(self, value=0):
     self.value = value
@@ -61,7 +67,7 @@ class Hand(object):
   class InvalidCard(Error): pass
   class InvalidTake(Error): pass
 
-  __slots__ = ('cards', 'stack', 'setdex', 'rundex', 'jokers')
+  __slots__ = ('cards', 'stack', 'setdices', 'rundex', 'jokers')
 
   SET_CLASS = sorted_list
 
@@ -104,25 +110,22 @@ class Hand(object):
     return sort_uniq(runs)
 
   @classmethod
-  def sets_from_setdex(cls, setdex, jokers=0):
-    sets = []
+  def orderable_colors_with_none(cls, tup):
+    return tuple(-1 if val is None else val for val in tup)
 
-    def orderable_combination(tup):
-      return tuple((tup[0], tuple(-1 if val is None else val for val in tup[1])))
-
-    for rank, colors in enumerate(setdex):
-      if rank < 2:
-        continue
+  @classmethod
+  def sets_from_colors(cls, colors, jokers=0):
+    def iterator():
       jokered_colors = [None] * jokers + list(colors)
       for set_size in range(Set.MIN, len(jokered_colors) + 1):
         for combination in unique_combinations(jokered_colors, set_size):
-          sets.append((rank, combination))
-
-    return sort_uniq(sets, key=orderable_combination)
+          print('Combination: %s' % (combination,))
+          yield combination
+    return sort_uniq(iterator(), key=cls.orderable_colors_with_none)
 
   def __init__(self, cards=None):
     self.rundex = dict((color, [0] * (Rank.MAX + 1)) for color in Color.iter())
-    self.setdex = [self.SET_CLASS() for k in range(Rank.MAX + 1)]
+    self.setdices = [self.SET_CLASS() for k in range(Rank.MAX + 1)]
     self.cards = defaultdict(int)
     self.jokers = 0
     self.stack = [None]   # stack of takes, None represents start of a "transaction"
@@ -158,7 +161,7 @@ class Hand(object):
 
     self.cards[card] -= 1
     self.rundex[card.color][card.rank] -= 1
-    self.setdex[card.rank].remove(card.color)
+    self.setdices[card.rank].remove(card.color)
     self.stack.append(card)
     return card
 
@@ -172,7 +175,7 @@ class Hand(object):
 
     self.cards[card] += 1
     self.rundex[card.color][card.rank] += 1
-    self.setdex[card.rank].append(card.color)
+    self.setdices[card.rank].append(card.color)
 
   def _map_run(self, run, method):
     if not isinstance(run, Run):
@@ -198,9 +201,16 @@ class Hand(object):
   def take_set(self, set_):
     self._map_set(set_, self.take_card)
 
+  @classmethod
+  def _orderable_combination(cls, tup):
+    return tuple((tup[0], tuple(-1 if val is None else val for val in tup[1])))
+
   def iter_sets(self):
-    for rank, combination in self.sets_from_setdex(self.setdex[:], self.jokers):
-      yield Set(rank, combination)
+    for rank, colors in enumerate(self.setdices):
+      if rank < 2:
+        continue
+      for combination in self.sets_from_colors(colors, self.jokers):
+        yield Set(rank, combination)
 
   def iter_runs(self):
     for color, rundex in self.rundex.copy().items():
@@ -260,7 +270,7 @@ class Hand(object):
     return 'Hand(%s)' % ' '.join('%s' % card for card in cards)
 
   def __str__(self):
-    return unicode(self).encode('utf-8')
+    return unicode(self)
 
 
 class FastHand(Hand):
@@ -270,9 +280,10 @@ class FastHand(Hand):
 
   SET_LUT = {}
   SET_LUT_FILE = os.path.expanduser('~/.liverpool_sets')
-  SET_LUT_MAX_JOKERS = 6
+  SET_LUT_MAX_JOKERS = 3
 
   SET_CLASS = Setdex
+  # SET_CLASS = sorted_list
 
   @classmethod
   def rundex_to_vector(cls, rundex):
@@ -292,6 +303,13 @@ class FastHand(Hand):
 
   @classmethod
   def precompute(cls):
+    print('Precomputing sets.')
+    for total_jokers in range(cls.SET_LUT_MAX_JOKERS + 1):
+      cls.SET_LUT[total_jokers] = {}
+      for setdex in Setdex.iter_all():
+        cls.SET_LUT[total_jokers][setdex.value] = list(
+            cls.sets_from_colors(setdex, total_jokers))
+
     print('Precomputing runs.')
     for total_jokers in range(cls.RUN_LUT_MAX_JOKERS + 1):
       cls.RUN_LUT[total_jokers] = {}
@@ -300,42 +318,28 @@ class FastHand(Hand):
         cls.RUN_LUT[total_jokers][card_vector] = list(
             cls.ranks_from_rundex(rundex, total_jokers))
 
-    """
-    print('Precomputing sets.')
-    for total_jokers in range(cls.SET_LUT_MAX_JOKERS + 1):
-      cls.SET_LUT[total_jokers] = {}
-      for card_vector in range(2**(Rank.MAX - Rank.MIN + 1)):
-        rundex = list(cls.vector_to_rundex(card_vector))
-        cls.RUN_LUT[total_jokers][card_vector] = list(
-            cls.ranks_from_rundex(rundex, total_jokers))
-    """
-
   # Consider a more compact representation, e.g. start,len,bitvector
   @classmethod
   def save_luts(cls):
     with contextlib.closing(gzip.GzipFile(cls.RUN_LUT_FILE, 'wb')) as fp:
       fp.write(json.dumps(cls.RUN_LUT))
-    """
     with contextlib.closing(gzip.GzipFile(cls.SET_LUT_FILE, 'wb')) as fp:
       fp.write(json.dumps(cls.SET_LUT))
-    """
 
   @classmethod
   def load_luts(cls):
     with contextlib.closing(gzip.GzipFile(cls.RUN_LUT_FILE, 'rb')) as fp:
       # json dictionary keys can only be strings, so we must coerce
-      for num_jokers, lut in json.load(fp).items():
+      for num_jokers, lut in json.loads(fp.read().decode('utf-8')).items():
         cls.RUN_LUT[int(num_jokers)] = {}
         for card_vector, runs in lut.items():
           cls.RUN_LUT[int(num_jokers)][int(card_vector)] = runs
-    """
     with contextlib.closing(gzip.GzipFile(cls.SET_LUT_FILE, 'rb')) as fp:
       # json dictionary keys can only be strings, so we must coerce
-      for num_jokers, lut in json.load(fp).items():
+      for num_jokers, lut in json.loads(fp.read().decode('utf-8')).items():
         cls.SET_LUT[int(num_jokers)] = {}
-        for card_vector, runs in lut.items():
-          cls.RUN_LUT[int(num_jokers)][int(card_vector)] = runs
-    """
+        for card_vector, sets in lut.items():
+          cls.SET_LUT[int(num_jokers)][int(card_vector)] = sets
 
   @classmethod
   def maybe_setup_hand(cls):
@@ -355,3 +359,10 @@ class FastHand(Hand):
       vector = self.rundex_to_vector(rundex)
       for start, jokers in self.RUN_LUT[min(self.jokers, self.RUN_LUT_MAX_JOKERS)][vector]:
         yield Run(Card(start, color), jokers)
+
+  def iter_sets(self):
+    for rank, colors in enumerate(self.setdices):
+      if rank < 2:
+        continue
+      for combination in self.SET_LUT[min(self.SET_LUT_MAX_JOKERS, self.jokers)][colors.value]:
+        yield Set(rank, combination)
