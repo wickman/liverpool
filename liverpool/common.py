@@ -5,10 +5,10 @@ import sys
 
 
 if sys.version_info[0] == 2:
-  def unicode(s):
+  def fake_unicode(s):
     return s.__unicode__().encode('utf-8')
 else:
-  def unicode(s):
+  def fake_unicode(s):
     return s.__unicode__()
 
 
@@ -152,7 +152,7 @@ class Card(object):
     return '%s%s' % (Rank.to_str(self.rank), Color.to_str(self.color))
 
   def __str__(self):
-    return unicode(self)
+    return fake_unicode(self)
 
   def __repr__(self):
     if self.color is None and self.rank is None:
@@ -209,7 +209,7 @@ class Run(object):
     return ' '.join('%s' % card for card in self)
 
   def __str__(self):
-    return unicode(self)
+    return fake_unicode(self)
 
   def __repr__(self):
     return '%s.from_cards(%s)' % (self.__class__.__name__, ', '.join(map(repr, self)))
@@ -267,7 +267,7 @@ class Set(object):
     return ' '.join('%s' % render_joker(card) for card in self)
 
   def __str__(self):
-    return unicode(self)
+    return fake_unicode(self)
 
   def __repr__(self):
     return '%s.from_cards(%s)' % (self.__class__.__name__, ', '.join(map(repr, self)))
@@ -307,7 +307,7 @@ class Meld(object):
     return 'Meld(%s)' % '   '.join('%s' % combo for combo in (self.sets + self.runs))
 
   def __str__(self):
-    return unicode(self)
+    return fake_unicode(self)
 
 
 class Deck(object):

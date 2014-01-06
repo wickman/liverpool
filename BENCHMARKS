@@ -1,0 +1,59 @@
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54534/14194/ 9285/    0 [160.0us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54618/14253/ 2055/    0 [73.7us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 100000/54530/14353/   99/    0 [61.8us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54878/14268/  174/    9 [372.9us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70833/24794/  423/    2 [296.1us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/70950/24792/   26/    4 [111.6us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/70959/24695/    0/    0 [844.8us/iter]
+
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54483/14084/ 9238/    0 [130.9us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54621/14128/ 1997/    0 [72.2us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 100000/54600/14169/   79/    0 [61.2us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54808/14427/  165/    6 [362.1us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70798/24603/  382/    0 [292.1us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/70919/24758/   15/    1 [94.4us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/70969/24841/    0/    0 [682.4us/iter]
+
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54368/14053/ 9272/    0 [137.6us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54808/14457/ 2070/    1 [78.4us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 100000/54386/14121/   85/    0 [63.1us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54495/14366/  144/    6 [355.6us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70792/24962/  431/    1 [319.5us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/71169/24935/   19/    3 [126.0us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/70869/24552/    0/    0 [905.4us/iter]
+
+---
+
+all(...not)
+
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54406/14038/ 9287/    0 [154.9us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54774/14268/ 2123/    0 [70.9us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 100000/54891/14360/   80/    0 [71.0us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54830/14505/  152/    6 [442.3us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70947/24970/  415/    2 [279.2us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/70753/24771/   16/    2 [150.2us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/70945/24706/    0/    0 [1177.4us/iter]
+
+
+not any(...)
+
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54724/14413/ 9363/    0 [161.0us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54760/14350/ 2042/    1 [71.1us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 100000/54776/14313/   82/    0 [64.9us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54771/14406/  151/    4 [419.2us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70724/24960/  391/    0 [282.1us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/71034/24943/   12/    1 [138.0us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/70819/24759/    1/    1 [1086.6us/iter]
+
+
+---
+
+Hand/IndexedHand split
+
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54631/14368/ 9153/    0 [139.1us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54324/14241/ 2048/    0 [84.9us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 100000/54601/14442/   75/    0 [63.4us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54583/14306/  143/    6 [363.5us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70836/24733/  397/    0 [305.7us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/70809/24846/   28/    1 [118.3us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/70870/24819/    0/    0 [1109.8us/iter]
