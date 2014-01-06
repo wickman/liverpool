@@ -10,8 +10,10 @@ from .combinatorics import (
     unique_combinations,
 )
 from .common import (
+   Add,
    Card,
    Color,
+   Extend,
    Meld,
    Rank,
    Run,
@@ -68,6 +70,11 @@ class IndexedHand(Hand):
     self.setdices = [Setdex() for k in range(Rank.MAX + 1)]
     super(IndexedHand, self).__init__(cards)
 
+  def iter_color(self, color):
+    for rank, count in enumerate(self.rundex[color][:]):
+      for _ in range(count):
+        yield Card(rank, color)
+
   def take_card(self, card):
     taken_card = super(IndexedHand, self).take_card(card)
     if taken_card != Card.JOKER:
@@ -101,15 +108,21 @@ def interleave(card_vector, joker_vector):
   return start, jokers
 
 
+# this could be improved with some thought.
+#
+# for joker_vector in unique_combinations(Rank.iter(), num_jokers):
+#   for rank_selection in range(Run.MIN - num_jokers, len(ranks) + 1):
+#     for joker_vector in unique_combinations(Rank.iter() - joker_vector, num_jokers):
+#       ...
+#
+# for high joker counts, this will reduce the complexity
 def ranks_from_rundex(rundex, jokers=0):
-  """Returns (start,joker) arrays for a particular rundex/#jokers."""
   total_jokers = min(2, jokers)  # cap runs at 2 jokers
   runs = []
   ranks = [rank for rank, count in enumerate(rundex) if count]
   for num_jokers in range(total_jokers + 1):
     for rank_selection in range(Run.MIN - num_jokers, len(ranks) + 1):
       for selected_cards in unique_combinations(ranks, rank_selection):
-        # this could be improved with some thought
         for joker_vector in unique_combinations(Rank.iter(), num_jokers):
           try:
             start, jokers = interleave(selected_cards, joker_vector)
@@ -125,10 +138,10 @@ def orderable_colors_with_none(tup):
   return tuple(-1 if val is None else val for val in tup)
 
 
-def sets_from_colors(colors, jokers=0):
+def sets_from_colors(colors, jokers=0, min_size=Set.MIN):
   def iterator():
     jokered_colors = [None] * jokers + list(colors)
-    for set_size in range(Set.MIN, len(jokered_colors) + 1):
+    for set_size in range(min_size, len(jokered_colors) + 1):
       for combination in unique_combinations(jokered_colors, set_size):
         yield combination
   return sort_uniq(iterator(), key=orderable_colors_with_none)
@@ -278,12 +291,39 @@ def iter_sets_lut(hand):
 
 
 def iter_adds(hand, set_):
-  pass
+  if not isinstance(hand, IndexedHand):
+    hand = IndexedHand(cards=list(hand))
+  for combination in sets_from_colors(hand.setdices[set_.rank], jokers=hand.jokers, min_size=1):
+    yield Add(combination)
 
 
-def iter_extends(hand, run):
-  pass
+def iter_extends(hand, run, run_iterator=iter_runs):
+  if not isinstance(hand, IndexedHand):
+    hand = IndexedHand(cards=list(hand))
+
+  new_hand = IndexedHand(cards=hand.iter_color(run.start.color))
+  for card in run:
+    new_hand.put_card(card)
+  for _ in range(hand.jokers):
+    new_hand.put_card(Card.JOKER)
+
+  for extended_run in run_iterator(new_hand):
+    try:
+      yield run.extend_from(extended_run)
+    except Run.InvalidExtend:
+      continue
 
 
 def iter_updates(hand, meld):
   pass
+
+
+"""
+new_h = Hand(cards=[Card(7, Color.HEART)])
+new_h.put_card(Card.JOKER)
+meld = list(iter_melds(h, Objective(1,1)))[-1]
+from liverpool.generation import iter_adds, iter_extends
+for extend in iter_extends(new_h, meld.runs[0]):
+  print(extend)
+
+"""

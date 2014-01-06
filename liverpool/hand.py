@@ -21,7 +21,7 @@ class Hand(object):
     self.cards = defaultdict(int)
     self.jokers = 0
     self.stack = [None]   # stack of takes, None represents start of a "transaction"
-    for card in self.cards:
+    for card in cards or []:
       self.put_card(card)
     self.commit()
 

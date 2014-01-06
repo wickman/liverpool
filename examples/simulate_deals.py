@@ -6,8 +6,10 @@ from liverpool.common import Deck, Objective
 from liverpool.generation import (
     IndexedHand,
     iter_melds,
-    iter_runs_lut as iter_runs,
-    iter_sets_lut as iter_sets,
+    # iter_runs_lut as iter_runs,
+    # iter_sets_lut as iter_sets,
+    iter_runs as iter_runs,
+    iter_sets as iter_sets,
     load_luts,
 )
 
@@ -60,7 +62,7 @@ if len(sys.argv) == 2:
 
 
 # preload
-load_luts()
+# load_luts()
 
 simulate(num_sets=2, num_runs=0, dealt_cards=10)
 simulate(num_sets=1, num_runs=1, dealt_cards=10)

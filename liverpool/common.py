@@ -164,7 +164,37 @@ class Card(object):
 Card.JOKER = Card(None, None)
 
 
+class Add(object):
+  __slots__ = ('cards',)
+
+  def __init__(self, cards):
+    self.cards = cards
+
+
+class Extend(object):
+  __slots__ = ('run', 'left', 'right')
+
+  def __init__(self, run, left=None, right=None):
+    self.run = run
+    self.left = left if left is not None else []
+    self.right = right if right is not None else []
+
+  def __unicode__(self):
+    run_str = '(%s)' % self.run
+    if self.left:
+      run_str = ' '.join('%s' % card for card in self.left) + '++' + run_str
+    if self.right:
+      run_str += '++' + ' '.join('%s' % card for card in self.right)
+    return run_str
+
+  def __str__(self):
+    return fake_unicode(self)
+
+
 class Run(object):
+  class Error(Exception): pass
+  class InvalidExtend(Exception): pass
+
   __slots__ = ('start', 'jokers')
 
   MIN = 4
@@ -204,6 +234,37 @@ class Run(object):
   def __iter__(self):
     for offset, joker in enumerate(self.jokers):
       yield Card.JOKER if joker else Card(self.start.rank + offset, self.start.color)
+
+  def iter_left(self):
+    for rank in range(self.start.rank, Rank.MIN - 1, -1):
+      yield Card(rank, self.start.color)
+
+  def iter_right(self):
+    for rank in range(self.start.rank + len(self.jokers), Rank.MAX + 1):
+      yield Card(rank, self.start.color)
+
+  def extend_from(self, other):
+    if not isinstance(other, Run):
+      return False
+    if self.start.color != other.start.color:
+      return False
+
+    my_cards = list(self)
+    other_cards = list(other)
+
+    left = []
+    while other_cards and other_cards[0] < my_cards[0]:
+      left.append(other_cards.pop(0))
+
+    other_cards_overlap, right = other_cards[0:len(my_cards)], other_cards[len(my_cards):]
+
+    if other_cards_overlap != my_cards:
+      raise self.InvalidExtend()
+
+    if not left and not right:
+      raise self.InvalidExtend('Empty extension.')
+
+    return Extend(self, left, right)
 
   def __unicode__(self):
     return ' '.join('%s' % card for card in self)
@@ -308,6 +369,7 @@ class Meld(object):
 
   def __str__(self):
     return fake_unicode(self)
+
 
 
 class Deck(object):
