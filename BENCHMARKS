@@ -69,3 +69,27 @@ sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54591/14265/  150/    7
 sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70781/24905/  399/    1 [602.5us/iter]
 sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/71139/24886/   11/    2 [459.2us/iter]
 sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/70618/24741/    0/    0 [1531.8us/iter]
+
+-------
+
+w/ integer cards + array instead of defaultdict
+
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54754/14298/ 9198/    0 [145.2us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54876/14326/ 2096/    1 [70.3us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 100000/54710/14181/   80/    0 [50.1us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54673/14335/  148/    5 [312.2us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70645/25063/  398/    0 [262.8us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/71050/24668/   20/    3 [101.3us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/71019/24776/    0/    0 [652.1us/iter]
+
+--------
+
+w/ 1M iters
+
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 1000000/546420/142492/93097/    0 [79.7us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 1000000/546828/142671/20497/    3 [55.7us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 1000000/546077/142224/  777/    3 [48.8us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 1000000/546986/143025/ 1594/   49 [218.6us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 1000000/709285/247880/ 3980/   15 [231.2us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 1000000/709178/248591/  173/   11 [89.1us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 1000000/709084/248924/    1/    1 [702.8us/iter]

@@ -75,7 +75,7 @@ class IndexedHand(Hand):
   def iter_color(self, color):
     for rank, count in enumerate(self.rundex[color][:]):
       for _ in range(count):
-        yield Card(rank, color)
+        yield Card.of(rank, color)
 
   def take_card(self, card):
     taken_card = super(IndexedHand, self).take_card(card)
@@ -164,7 +164,7 @@ def iter_runs(hand):
     hand = IndexedHand(cards=list(hand))
   for color, rundex in hand.rundex.copy().items():
     for start, jokers in ranks_from_rundex(rundex, hand.jokers):
-      yield Run(Card(start, color), jokers)
+      yield Run(Card.of(start, color), jokers)
 
 
 def take_committed(hand, combos, commit=False):
@@ -278,7 +278,7 @@ def iter_runs_lut(hand):
   for color, rundex in hand.rundex.copy().items():
     vector = rundex_to_vector(rundex)
     for start, jokers in _RUN_LUT[min(hand.jokers, _RUN_LUT_MAX_JOKERS)][vector]:
-      yield Run(Card(start, color), jokers)
+      yield Run(Card.of(start, color), jokers)
 
 
 def iter_sets_lut(hand):
@@ -297,7 +297,7 @@ def iter_adds(hand, set_):
     hand = IndexedHand(cards=list(hand))
   yield Add()
   for combination in sets_from_colors(hand.setdices[set_.rank], jokers=hand.jokers, min_size=1):
-    yield Add(Card(set_.rank, color) if color else Card.JOKER for color in combination)
+    yield Add(Card.of(set_.rank, color) if color else Card.JOKER for color in combination)
 
 
 def iter_extends(hand, run, run_iterator=iter_runs):
@@ -332,7 +332,7 @@ def iter_updates(hand, meld, run_iterator=iter_runs):
   for combination in itertools.product(*combos):
     if take_committed(hand, combination, commit=False):
       yield MeldUpdate(combination)
-    
+
 
 
 """

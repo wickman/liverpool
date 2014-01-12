@@ -20,6 +20,7 @@ class Color(object):
   SPADE = 1
   HEART = 2
   DIAMOND = 3
+  MAX = 3
 
   COLORS = {
     CLUB: 'CLUB',
@@ -117,37 +118,48 @@ class Rank(object):
 
 
 class Card(object):
-  __slots__ = ('color', 'rank')
+  # __slots__ = ('color', 'rank')
+  __slots__ = ('value',)
 
-  def __init__(self, rank, color):
-    self.color = color if color is None else Color.validate(color)
-    self.rank = rank if rank is None else Rank.validate(rank)
+  MAX = Rank.MAX + Color.MAX * (Rank.MAX + 1)
+
+  @classmethod
+  def of(cls, rank, color):
+    return cls(Rank.validate(rank) + Color.validate(color) * (Rank.MAX + 1))
+
+  def __init__(self, value):
+    self.value = value
+
+  @property
+  def color(self):
+    return None if self.value == 0 else self.value // (Rank.MAX + 1)
+  
+  @property
+  def rank(self):
+    return None if self.value == 0 else self.value % (Rank.MAX + 1)
 
   def iter_rank(self):
     # only support rank iteration for non-jokers
     assert self.color is not None
     assert self.rank is not None
     for rank in range(self.rank, Rank.MAX + 1):
-      yield Card(rank, self.color)
-
-  def _as_tuple(self):
-    return (self.rank, self.color)
+      yield Card.of(rank, self.color)
 
   def __hash__(self):
-    return hash(self._as_tuple())
+    return hash(self.value)
 
   def __lt__(self, other):
     if not isinstance(other, Card):
       raise TypeError
-    return self._as_tuple() < other._as_tuple()
+    return self.value < other.value
 
   def __eq__(self, other):
     if not isinstance(other, Card):
       return False
-    return self.color == other.color and self.rank == other.rank
+    return self.value == other.value
 
   def __unicode__(self):
-    if self.color is None and self.rank is None:
+    if self.value == 0:
       return '??'
     return '%s%s' % (Rank.to_str(self.rank), Color.to_str(self.color))
 
@@ -155,19 +167,19 @@ class Card(object):
     return fake_unicode(self)
 
   def __repr__(self):
-    if self.color is None and self.rank is None:
+    if self.value == 0:
       return '%s.JOKER' % self.__class__.__name__
     return '%s(%s, %s)' % (
         self.__class__.__name__, Color.to_repr(self.color), Rank.to_repr(self.rank))
 
 
-Card.JOKER = Card(None, None)
+Card.JOKER = Card(0)
 
 
 class Add(list):
   def __unicode__(self):
     return ' '.join('%s' % card for card in self)
-  
+
   def __str__(self):
     return fake_unicode(self)
 
@@ -237,15 +249,15 @@ class Run(object):
 
   def __iter__(self):
     for offset, joker in enumerate(self.jokers):
-      yield Card.JOKER if joker else Card(self.start.rank + offset, self.start.color)
+      yield Card.JOKER if joker else Card.of(self.start.rank + offset, self.start.color)
 
   def iter_left(self):
     for rank in range(self.start.rank, Rank.MIN - 1, -1):
-      yield Card(rank, self.start.color)
+      yield Card.of(rank, self.start.color)
 
   def iter_right(self):
     for rank in range(self.start.rank + len(self.jokers), Rank.MAX + 1):
-      yield Card(rank, self.start.color)
+      yield Card.of(rank, self.start.color)
 
   def extend_from(self, other):
     if not isinstance(other, Run):
@@ -322,7 +334,7 @@ class Set(object):
     for _ in range(self.jokers):
       yield Card.JOKER
     for color in self.colors:
-      yield Card(self.rank, color)
+      yield Card.of(self.rank, color)
 
   def __unicode__(self):
     def render_joker(card):
@@ -388,7 +400,7 @@ class Deck(object):
     for _ in range(count):
       for rank in Rank.iter():
         for color in Color.iter():
-          self.cards.append(Card(rank, color))
+          self.cards.append(Card.of(rank, color))
       for _ in range(2):
         self.cards.append(Card.JOKER)
     self.shuffle()
