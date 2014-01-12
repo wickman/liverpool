@@ -7,6 +7,8 @@ from .common import (
     fake_unicode,
     Run,
     Set,
+    Add,
+    Extend,
 )
 
 
@@ -72,29 +74,13 @@ class Hand(object):
 
     self.cards[card] += 1
 
-  def _map_run(self, run, method):
-    if not isinstance(run, Run):
-      raise TypeError('Expected run to be Run, got %s' % type(run))
-    for card in run:
-      method(card)
-
-  def _map_set(self, set_, method):
-    if not isinstance(set_, Set):
-      raise TypeError('Expected set to be Set, got %s' % type(set_))
-    for card in set_:
-      method(card)
-
-  def put_run(self, run):
-    self._map_run(run, self.put_card)
-
-  def put_set(self, set_):
-    self._map_set(set_, self.put_card)
-
-  def take_run(self, run):
-    self._map_run(run, self.take_card)
-
-  def take_set(self, set_):
-    self._map_set(set_, self.take_card)
+  def put_combo(self, combo):
+    for card in combo:
+      self.put_card(card)
+  
+  def take_combo(self, combo):
+    for card in combo:
+      self.take_card(card)
 
   def __unicode__(self):
     return 'Hand(%s)' % ' '.join('%s' % card for card in self)

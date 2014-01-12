@@ -6,10 +6,10 @@ from liverpool.common import Deck, Objective
 from liverpool.generation import (
     IndexedHand,
     iter_melds,
-    # iter_runs_lut as iter_runs,
-    # iter_sets_lut as iter_sets,
-    iter_runs as iter_runs,
-    iter_sets as iter_sets,
+    iter_runs_lut as iter_runs,
+    iter_sets_lut as iter_sets,
+    #iter_runs as iter_runs,
+    #iter_sets as iter_sets,
     load_luts,
 )
 

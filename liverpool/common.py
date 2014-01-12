@@ -164,11 +164,12 @@ class Card(object):
 Card.JOKER = Card(None, None)
 
 
-class Add(object):
-  __slots__ = ('cards',)
-
-  def __init__(self, cards):
-    self.cards = cards
+class Add(list):
+  def __unicode__(self):
+    return ' '.join('%s' % card for card in self)
+  
+  def __str__(self):
+    return fake_unicode(self)
 
 
 class Extend(object):
@@ -178,6 +179,9 @@ class Extend(object):
     self.run = run
     self.left = left if left is not None else []
     self.right = right if right is not None else []
+
+  def __iter__(self):
+    return iter(self.left + self.right)
 
   def __unicode__(self):
     run_str = '(%s)' % self.run
@@ -356,6 +360,9 @@ class Meld(object):
   def _as_tuple(self):
     return tuple(self.sets + self.runs)
 
+  def __iter__(self):
+    return iter(self._as_tuple())
+
   def __eq__(self, other):
     if not isinstance(other, Meld):
       return False
@@ -370,6 +377,9 @@ class Meld(object):
   def __str__(self):
     return fake_unicode(self)
 
+
+class MeldUpdate(list):
+  pass
 
 
 class Deck(object):

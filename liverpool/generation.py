@@ -1,4 +1,5 @@
 import contextlib
+import itertools
 import gzip
 import json
 import os
@@ -15,6 +16,7 @@ from .common import (
    Color,
    Extend,
    Meld,
+   MeldUpdate,
    Rank,
    Run,
    Set,
@@ -165,10 +167,10 @@ def iter_runs(hand):
       yield Run(Card(start, color), jokers)
 
 
-def take_committed(hand, combos, method, commit=False):
+def take_committed(hand, combos, commit=False):
   try:
     for combo in combos:
-      method(combo)
+      hand.take_combo(combo)
     if commit:
       hand.commit()
     else:
@@ -184,17 +186,17 @@ def iter_melds(hand, strategy, set_iterator=iter_sets, run_iterator=iter_runs):
     hand = IndexedHand(cards=list(hand))
   if strategy.num_runs == 0:
     for sets in uniq(combinations_with_replacement(set_iterator(hand), strategy.num_sets)):
-      if take_committed(hand, sets, hand.take_set, commit=False):
+      if take_committed(hand, sets, commit=False):
         yield Meld(sets, None)
   elif strategy.num_sets == 0:
     for runs in uniq(combinations_with_replacement(run_iterator(hand), strategy.num_runs)):
-      if take_committed(hand, runs, hand.take_run, commit=False):
+      if take_committed(hand, runs, commit=False):
         yield Meld(None, runs)
   else:
     for sets in uniq(combinations_with_replacement(set_iterator(hand), strategy.num_sets)):
-      if take_committed(hand, sets, hand.take_set, commit=True):
+      if take_committed(hand, sets, commit=True):
         for runs in uniq(combinations_with_replacement(run_iterator(hand), strategy.num_runs)):
-          if take_committed(hand, runs, hand.take_run, commit=False):
+          if take_committed(hand, runs, commit=False):
             yield Meld(sets, runs)
         hand.undo()
 
@@ -293,8 +295,9 @@ def iter_sets_lut(hand):
 def iter_adds(hand, set_):
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
+  yield Add()
   for combination in sets_from_colors(hand.setdices[set_.rank], jokers=hand.jokers, min_size=1):
-    yield Add(combination)
+    yield Add(Card(set_.rank, color) if color else Card.JOKER for color in combination)
 
 
 def iter_extends(hand, run, run_iterator=iter_runs):
@@ -307,6 +310,7 @@ def iter_extends(hand, run, run_iterator=iter_runs):
   for _ in range(hand.jokers):
     new_hand.put_card(Card.JOKER)
 
+  yield Extend(run)
   for extended_run in run_iterator(new_hand):
     try:
       yield run.extend_from(extended_run)
@@ -314,16 +318,31 @@ def iter_extends(hand, run, run_iterator=iter_runs):
       continue
 
 
-def iter_updates(hand, meld):
-  pass
+def iter_updates(hand, meld, run_iterator=iter_runs):
+  combos = []
+  for combo in meld:
+    if isinstance(combo, Set):
+      combos.append(list(iter_adds(hand, combo)))
+    elif isinstance(combo, Run):
+      combos.append(list(iter_extends(hand, combo, run_iterator)))
+    else:
+      raise TypeError('Invalid Meld combo: %s' % type(combo))
+  for k, combo in enumerate(combos):
+    print('%d: %s' % (k, combo))
+  for combination in itertools.product(*combos):
+    if take_committed(hand, combination, commit=False):
+      yield MeldUpdate(combination)
+    
 
 
 """
+from liverpool.common import *
+from liverpool.generation import *
+from liverpool.hand import Hand
 new_h = Hand(cards=[Card(7, Color.HEART)])
 new_h.put_card(Card.JOKER)
 meld = list(iter_melds(h, Objective(1,1)))[-1]
-from liverpool.generation import iter_adds, iter_extends
-for extend in iter_extends(new_h, meld.runs[0]):
-  print(extend)
+for update in iter_updates(new_h, meld):
+  print(' , '.join('%s' % combo for combo in update))
 
 """
