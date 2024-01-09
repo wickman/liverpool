@@ -1,9 +1,11 @@
-*~
-*.pyc
 *.egg-info
+*.pyc
+*~
+.coverage
+.deps
+.venv*
+.virtualenv*
+.vscode
 build/*
 dist/*
-.deps
-.virtualenv*
-.coverage
 htmlcov

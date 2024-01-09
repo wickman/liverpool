@@ -4,8 +4,9 @@ import gzip
 import json
 import os
 
+from typing import Iterable, Optional, List
+
 from .combinatorics import (
-    combinations_with_replacement,
     sort_uniq,
     uniq,
     unique_combinations,
@@ -37,6 +38,14 @@ __all__ = (
 
 
 class Setdex(object):
+  """A set's colors represented as a bit vector.
+
+  There are 4 colors for a Card (2 bits = 0, 1, 2, 3 = CLUB, SPADE, HEART, DIAMOND)
+  There are NUM_BITS for the number of decks, so for 0, 1, 2 decks we need NUM_BITS = 2, for 3-7 decks we need NUM_BITS = 3, etc.
+
+  So if NUM_DECKS=2, the maximum number of CLUBs is 2, and the maximum number of SPADEs is 2, etc.
+  """
+
   # Index set count.
   __slots__ = ('value',)
 
@@ -44,20 +53,23 @@ class Setdex(object):
   SET_MASK = (1 << NUM_BITS) - 1
 
   @classmethod
-  def iter_all(cls):
+  def iter_all(cls) -> Iterable["Setdex"]:
     for value in range(2 ** (cls.NUM_BITS * 4)):
       yield cls(value)
 
-  def __init__(self, value=0):
+  def __init__(self, value: int = 0) -> None:
     self.value = value
 
-  def append(self, color):
+  def append(self, color) -> None:
+    """Add a color to the set.  NOT BOUNDS CHECKED."""
     self.value += 1 << (self.NUM_BITS * color)
 
-  def remove(self, color):
+  def remove(self, color) -> None:
+    """Remove a color from the set.  NOT BOUNDS CHECKED."""
     self.value -= 1 << (self.NUM_BITS * color)
 
-  def __iter__(self):
+  def __iter__(self) -> Iterable[int]:
+    """List the colors in the set."""
     for color in Color.iter():
       count = (self.value & (self.SET_MASK << (self.NUM_BITS * color))) >> (self.NUM_BITS * color)
       for _ in range(count):
@@ -65,9 +77,11 @@ class Setdex(object):
 
 
 class IndexedHand(Hand):
+  """A hand of cards annotated by a rundex and setdexen for fast combinatorial move generation."""
+
   __slots__ = ('setdices', 'rundex')
 
-  def __init__(self, cards=None):
+  def __init__(self, cards: Optional[List[Card]] = None):
     self.rundex = dict((color, [0] * (Rank.MAX + 1)) for color in Color.iter())
     self.setdices = [Setdex() for k in range(Rank.MAX + 1)]
     super(IndexedHand, self).__init__(cards)
@@ -185,17 +199,17 @@ def iter_melds(hand, strategy, set_iterator=iter_sets, run_iterator=iter_runs):
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
   if strategy.num_runs == 0:
-    for sets in uniq(combinations_with_replacement(set_iterator(hand), strategy.num_sets)):
+    for sets in uniq(itertools.combinations_with_replacement(set_iterator(hand), strategy.num_sets)):
       if take_committed(hand, sets, commit=False):
         yield Meld(sets, None)
   elif strategy.num_sets == 0:
-    for runs in uniq(combinations_with_replacement(run_iterator(hand), strategy.num_runs)):
+    for runs in uniq(itertools.combinations_with_replacement(run_iterator(hand), strategy.num_runs)):
       if take_committed(hand, runs, commit=False):
         yield Meld(None, runs)
   else:
-    for sets in uniq(combinations_with_replacement(set_iterator(hand), strategy.num_sets)):
+    for sets in uniq(itertools.combinations_with_replacement(set_iterator(hand), strategy.num_sets)):
       if take_committed(hand, sets, commit=True):
-        for runs in uniq(combinations_with_replacement(run_iterator(hand), strategy.num_runs)):
+        for runs in uniq(itertools.combinations_with_replacement(run_iterator(hand), strategy.num_runs)):
           if take_committed(hand, runs, commit=False):
             yield Meld(sets, runs)
         hand.undo()
@@ -228,6 +242,8 @@ def vector_to_rundex(vector):
 
 
 def precompute_luts():
+  print('Precomputing LUTS. This will take a while...')
+
   for total_jokers in range(_SET_LUT_MAX_JOKERS + 1):
     _SET_LUT[total_jokers] = {}
     for setdex in Setdex.iter_all():
@@ -242,21 +258,21 @@ def precompute_luts():
 
 # Consider a more compact representation, e.g. start,len,bitvector
 def save_luts():
-  with contextlib.closing(gzip.GzipFile(_RUN_LUT_FILE, 'wb')) as fp:
-    fp.write(json.dumps(_RUN_LUT))
-  with contextlib.closing(gzip.GzipFile(_SET_LUT_FILE, 'wb')) as fp:
-    fp.write(json.dumps(_SET_LUT))
+  with contextlib.closing(gzip.GzipFile(_RUN_LUT_FILE, 'w')) as fp:
+    fp.write(json.dumps(_RUN_LUT).encode('utf-8'))
+  with contextlib.closing(gzip.GzipFile(_SET_LUT_FILE, 'w')) as fp:
+    fp.write(json.dumps(_SET_LUT).encode('utf-8'))
 
 
 def load_luts():
   # json dictionary keys can only be strings, so we must coerce
-  with contextlib.closing(gzip.GzipFile(_RUN_LUT_FILE, 'rb')) as fp:
-    for num_jokers, lut in json.loads(fp.read().decode('utf-8')).items():
+  with contextlib.closing(gzip.GzipFile(_RUN_LUT_FILE, 'r')) as fp:
+    for num_jokers, lut in json.load(fp).items():
       _RUN_LUT[int(num_jokers)] = {}
       for card_vector, runs in lut.items():
         _RUN_LUT[int(num_jokers)][int(card_vector)] = runs
-  with contextlib.closing(gzip.GzipFile(_SET_LUT_FILE, 'rb')) as fp:
-    for num_jokers, lut in json.loads(fp.read().decode('utf-8')).items():
+  with contextlib.closing(gzip.GzipFile(_SET_LUT_FILE, 'r')) as fp:
+    for num_jokers, lut in json.load(fp).items():
       _SET_LUT[int(num_jokers)] = {}
       for card_vector, sets in lut.items():
         _SET_LUT[int(num_jokers)][int(card_vector)] = sets

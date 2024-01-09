@@ -1,11 +1,10 @@
-from __future__ import print_function, unicode_literals
-
-import array
+from array import array
 from collections import defaultdict
+
+from typing import List, Optional, Iterable
 
 from .common import (
     Card,
-    fake_unicode,
     Run,
     Set,
     Add,
@@ -13,45 +12,71 @@ from .common import (
 )
 
 
-class Hand(object):
+class Hand:
+  """A hand of cards.
+
+  Mechanically you construct cards from a deck, e.g. h = Hand.from_deck(deck, 10)
+
+  You can then take cards from the hand, e.g. h.take_card(Card.of(Rank.ACE, Suit.SPADES)).
+  You can also take combos, e.g. h.take_combo(run) or h.take_combo(set).
+
+  Takes are transacted, so you can rollback or commit them. Puts are not transacted.
+  """
+
   class Error(Exception): pass
   class InvalidCard(Error): pass
   class InvalidTake(Error): pass
 
-  __slots__ = ('cards', 'stack')
+  __slots__ = ('cards', 'taken')
 
-  def __init__(self, cards=None):
-    self.cards = array.array('B', [0]*(Card.MAX + 1))
-    self.stack = [None]   # stack of takes, None represents start of a "transaction"
-    for card in cards or []:
+  @classmethod
+  def from_deck(cls, deck, count) -> "Hand":
+    cards = []
+    with deck:
+      try:
+        for _ in range(count):
+          cards.append(deck.pop())
+      except deck.EmptyDeck:
+        raise cls.Error("Insufficient cards in deck")
+    return cls(cards)
+
+  def __init__(self, cards=None) -> None:
+    self.cards: array[int] = array('B', [0]*(Card.MAX + 1))
+    # stack of takes, None represents start of a "transaction"
+    self.taken: List[Optional[Card]] = []
+    for card in (cards or []):
       self.put_card(card)
     self.commit()
 
   @property
-  def jokers(self):
+  def jokers(self) -> int:
     return self.cards[Card.JOKER.value]
 
-  def __iter__(self):
+  @property
+  def empty(self) -> bool:
+    return sum(self.cards) == 0
+
+  def __iter__(self) -> Iterable[Card]:
     for card_value, count in enumerate(self.cards):
       for _ in range(count):
         yield Card(card_value)
 
   def commit(self):
-    self.stack.append(None)
+    self.taken.append(None)
 
   def rollback(self):
-    while self.stack[-1] is not None:
-      self.put_card(self.stack.pop())
+    while self.taken[-1] is not None:
+      self.put_card(self.taken.pop())
 
   def undo(self):
-    assert len(self.stack) > 1
-    assert self.stack.pop() is None
+    assert len(self.taken) > 1
+    assert self.taken.pop() is None
     self.rollback()
 
   def truncate(self):
-    self.stack = [None]
+    self.taken = [None]
 
-  def take_card(self, card):
+  def take_card(self, card) -> Card:
     if not isinstance(card, Card):
       raise TypeError('Expected card to be Card, got %s' % type(card))
 
@@ -59,7 +84,7 @@ class Hand(object):
       raise self.InvalidTake('You do not have a %s!' % card)
 
     self.cards[card.value] -= 1
-    self.stack.append(card)
+    self.taken.append(card)
     return card
 
   def put_card(self, card):
@@ -76,8 +101,6 @@ class Hand(object):
     for card in combo:
       self.take_card(card)
 
-  def __unicode__(self):
+  def __str__(self):
     return 'Hand(%s)' % ' '.join('%s' % card for card in self)
 
-  def __str__(self):
-    return fake_unicode(self)

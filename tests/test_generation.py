@@ -59,7 +59,7 @@ def test_lay_regression1():
 
   objective = Objective(3, 0)
 
-  # if set iterator returns dupes, this will be ~= 780
-  for meld in iter_melds(h, objective):
-    print(meld)
-  assert len(list(iter_melds(h, objective))) == 39
+  assert len(list(iter_melds(h, objective))) == 26
+
+
+

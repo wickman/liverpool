@@ -142,17 +142,22 @@ def negotiate():
 
   if discard.top():
     for player in order(players, turn):
-      if player.wants(discard.top()):
-        if player == first_player:
-          player.take(discard.top())
-          return [PlayerTake(player.pid, discard.top(), 0)]
-        else:
-          player.buy(discard.top(), deck.pop(), deck.pop())
-          takes.append(PlayerTake(player.pid, discard.top(), 2))
+      if player == first_player:
+        take = PlayerTake(player.pid, discard.top(), 0)
+        if player.wants(discard.top(), 0):
+          taken_card = discard.pop()
+          player.take(taken_card)
+          return [PlayerTake(player.pid, taken_card, 0)]
+      else:
+        if player.wants(discard.top(), 2):
+          top = discard.pop()
+          player.take(top, deck.pop(), deck.pop())
+          takes.append(PlayerTake(player.pid, top, 2))
           break
 
   first_player.take(deck.pop())
   takes.append(PlayerTake(first_player.pid, None, 1))
+  return takes
 
 
 def play():

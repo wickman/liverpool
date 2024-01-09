@@ -17,7 +17,7 @@ from liverpool.generation import (
 def simulate(
     num_runs=1,
     num_sets=1,
-    iterations=100000,
+    iterations=1000000,
     decks=2,
     dealt_cards=10):
 
@@ -26,10 +26,10 @@ def simulate(
 
   for iteration in range(iterations):
     h = IndexedHand()
-    d = Deck(count=decks)
+    d = Deck.new(count=decks)
 
     for _ in range(dealt_cards):
-      h.put_card(d.take())
+      h.put_card(d.pop())
 
     sets = list(iter_sets(h))
     if sets:

@@ -82,6 +82,17 @@ sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70645/25063/  398/    0
 sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/71050/24668/   20/    3 [101.3us/iter]
 sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/71019/24776/    0/    0 [652.1us/iter]
 
+sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54785/14336/ 9357/    0 [121.5us/iter]
+sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54733/14072/ 2000/    1 [52.0us/iter]
+sets/runs/dealt 0/2/10 iters/sets/runs/melds/out: 100000/54658/14387/   82/    0 [55.2us/iter]
+sets/runs/dealt 3/0/10 iters/sets/runs/melds/out: 100000/54648/14217/  153/    6 [218.6us/iter]
+sets/runs/dealt 2/1/12 iters/sets/runs/melds/out: 100000/70993/24851/  371/    2 [197.8us/iter]
+sets/runs/dealt 1/2/12 iters/sets/runs/melds/out: 100000/70945/24741/   19/    1 [82.7us/iter]
+sets/runs/dealt 0/3/12 iters/sets/runs/melds/out: 100000/70880/24823/    0/    0 [722.8us/iter]
+
+w/ 4-byte ints
+
+
 --------
 
 w/ 1M iters
