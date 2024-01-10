@@ -221,10 +221,6 @@ class Card:
         ', joker=True' if self.is_joker else '')
 
 
-class Add(list):
-  """A list of cards that can be added to a hand."""
-  def __str__(self):
-    return ' '.join('%s' % card for card in self)
 
 
 class Run:
@@ -238,22 +234,14 @@ class Run:
   MIN = 4
 
   @classmethod
-  def of(cls, color: int, start: int, length: int, joker_indices: Optional[List[int]] = None) -> "Run":
+  def of(cls, color: int, start: int, jokers: List[bool]) -> "Run":
     if not isinstance(color, int):
       raise TypeError('Expected color to be an integer, got %s' % type(color))
     if not isinstance(start, int) or start < Rank.MIN or start > Rank.MAX:
       raise TypeError('Expected start to be an integer between %d and %d, got %s' % (
           Rank.MIN, Rank.MAX, start))
-    if not isinstance(length, int) or length < cls.MIN:
-      raise TypeError('Expected length to be an integer >= %d, got %s' % (cls.MIN, length))
-    if joker_indices is not None and not isinstance(joker_indices, (tuple, list)):
-      raise TypeError('Expected joker_indices to be a tuple/list of integers.')
-    if joker_indices is not None and any(index > length for index in joker_indices):
-      raise ValueError('Got joker index out of bounds.')
-    jokers = [False] * length
-    if joker_indices is not None:
-      for joker_index in joker_indices:
-        jokers[joker_index] = True
+    if len(jokers) < cls.MIN:
+      raise TypeError('Expected length to be an integer >= %d, got %s' % (cls.MIN, len(jokers)))
     cards = [Card.of(start + offset, color, joker) for offset, joker in enumerate(jokers)]
     return cls(cards)
 
@@ -479,19 +467,6 @@ class Meld:
 
   def __str__(self):
     return 'Meld(%s)' % '   '.join('%s' % combo for combo in (self.sets + self.runs))
-
-
-class DeckTransaction:
-  def __init__(self, cards: List[Card]) -> None:
-    self.cards = cards
-    self.saved = False
-
-  def save(self):
-    self.saved = True
-
-  def rollback(self):
-    self.saved = False
-
 
 
 class Deck:

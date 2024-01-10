@@ -8,7 +8,7 @@ from liverpool.common import (
     Run,
     Set,
 )
-from liverpool.generation import iter_melds, iter_sets, Extend, extend_from
+from liverpool.generation import iter_melds, iter_sets, Extend, extend_from, iter_extends, iter_adds
 from liverpool.hand import Hand
 
 
@@ -73,30 +73,66 @@ def test_lay_regression1():
 
 def test_extend_from():
     # no-op extend raises InvalidExtend
-    r1 = Run.of(Color.HEART, start=2, length=4)
-    r2 = Run.of(Color.HEART, start=2, length=4)
+    r1 = Run.of(Color.HEART, start=2, jokers=4*[False])
+    r2 = Run.of(Color.HEART, start=2, jokers=4*[False])
     with pytest.raises(ValueError):
       e = extend_from(r1, r2)
 
     # extend right
-    r2 = Run.of(Color.HEART, start=2, length=5)
+    r2 = Run.of(Color.HEART, start=2, jokers=5*[False])
     e = extend_from(r1, r2)
     assert e.run == r1
     assert e.left == []
     assert e.right == [Card.of(6, Color.HEART)]
 
     # extend left
-    r1 = Run.of(Color.HEART, start=3, length=4)
-    r2 = Run.of(Color.HEART, start=2, length=5)
+    r1 = Run.of(Color.HEART, start=3, jokers=4*[False])
+    r2 = Run.of(Color.HEART, start=2, jokers=5*[False])
     e = extend_from(r1, r2)
     assert e.run == r1
     assert e.left == [Card.of(2, Color.HEART)]
     assert e.right == []
 
     # extend left and right
-    r1 = Run.of(Color.HEART, start=3, length=4)
-    r2 = Run.of(Color.HEART, start=2, length=6)
+    r1 = Run.of(Color.HEART, start=3, jokers=4*[False])
+    r2 = Run.of(Color.HEART, start=2, jokers=6*[False])
     e = extend_from(r1, r2)
     assert e.run == r1
     assert e.left == [Card.of(2, Color.HEART)]
     assert e.right == [Card.of(7, Color.HEART)]
+
+def test_iter_extends():
+  h = Hand()
+  cards = [
+    Card.of(2, Color.CLUB),
+    Card.of(2, Color.HEART),
+    Card.of(2, Color.DIAMOND),
+  ]
+  for card in cards:
+    h.put_card(card)
+  
+  run = Run.of(Color.HEART, start=3, jokers=4*[False])
+
+  all_extends = list(iter_extends(h, run))
+  assert len(all_extends) == 2
+  assert all_extends[0].run == run
+  assert all_extends[0].left == all_extends[0].right == []
+  assert all_extends[1].run == run
+  assert all_extends[1].left == [Card.of(2, Color.HEART)]
+  assert all_extends[1].right == []
+
+def test_iter_adds():
+  h = Hand()
+  cards = [
+    Card.of(2, Color.CLUB),
+    Card.of(3, Color.HEART),
+  ]
+  for card in cards:
+    h.put_card(card)
+  
+  s = Set.of(2, [Color.CLUB, Color.HEART, Color.DIAMOND])
+
+  all_adds = list(iter_adds(h, s))
+  assert len(all_adds) == 2
+  assert all_adds[0] == []
+  assert all_adds[1] == [Card.of(2, Color.CLUB)]

@@ -1,3 +1,18 @@
+"""Utilities for move generation in liverpool rummy.
+
+Some new concepts:
+
+  * Setdex: A set of colors represented as a bit vector.  For example with 2 decks, it's possible
+    to have up to 8 cards of the same rank (not counting jokers.)  Given some combination of 8 colors,
+    we precompute all the permutations of those colors to yield a set and store those in a lookup table.
+    The Setdex is merely a way to go back and forth from a scalar number to a set of colors.
+
+  * Rundex: A sequence of ranks of a specific color represented as a bit vector.  Given a set number of
+    jokers, we can precompute all possible runs for a given Rundex and which positions are materialized
+    jokers as (start_rank, joker_indices) tuples.
+
+"""
+
 import contextlib
 import itertools
 import gzip
@@ -12,7 +27,6 @@ from .combinatorics import (
     unique_combinations,
 )
 from .common import (
-   Add,
    Card,
    Color,
    Meld,
@@ -39,9 +53,8 @@ class Setdex(object):
   """A set's colors represented as a bit vector.
 
   There are 4 colors for a Card (2 bits = 0, 1, 2, 3 = CLUB, SPADE, HEART, DIAMOND)
-  There are NUM_BITS for the number of decks, so for 0, 1, 2 decks we need NUM_BITS = 2, for 3-7 decks we need NUM_BITS = 3, etc.
-
-  So if NUM_DECKS=2, the maximum number of CLUBs is 2, and the maximum number of SPADEs is 2, etc.
+  There are NUM_BITS for the number of decks, so for 0, 1, 2 decks we need NUM_BITS = 2,
+  for 3-7 decks we need NUM_BITS = 3, etc.
   """
 
   # Index set count.
@@ -77,31 +90,31 @@ class Setdex(object):
 class IndexedHand(Hand):
   """A hand of cards annotated by a rundex and setdexen for fast combinatorial move generation."""
 
-  __slots__ = ('setdices', 'rundex')
+  __slots__ = ('setdexen', 'rundexen')
 
   def __init__(self, cards: Optional[List[Card]] = None):
-    self.rundex = dict((color, [0] * (Rank.MAX + 1)) for color in Color.iter())
-    self.setdices = [Setdex() for k in range(Rank.MAX + 1)]
+    self.rundexen = dict((color, [0] * (Rank.MAX + 1)) for color in Color.iter())
+    self.setdexen = [Setdex() for k in range(Rank.MAX + 1)]
     super(IndexedHand, self).__init__(cards)
 
   def iter_color(self, color):
-    for rank, count in enumerate(self.rundex[color][:]):
+    for rank, count in enumerate(self.rundexen[color][:]):
       for _ in range(count):
         yield Card.of(rank, color)
 
   def take_card(self, card):
     taken_card = super(IndexedHand, self).take_card(card)
     if not taken_card.is_joker:
-      self.rundex[card.color][card.rank] -= 1
-      self.setdices[card.rank].remove(card.color)
+      self.rundexen[card.color][card.rank] -= 1
+      self.setdexen[card.rank].remove(card.color)
     return taken_card
 
   def put_card(self, card):
     super(IndexedHand, self).put_card(card)
 
     if not card.is_joker:
-      self.rundex[card.color][card.rank] += 1
-      self.setdices[card.rank].append(card.color)
+      self.rundexen[card.color][card.rank] += 1
+      self.setdexen[card.rank].append(card.color)
 
 
 def interleave(card_vector, joker_vector):
@@ -131,6 +144,12 @@ def interleave(card_vector, joker_vector):
 #
 # for high joker counts, this will reduce the complexity
 def ranks_from_rundex(rundex, jokers=0):
+  """Given a rundex, return all possible runs.
+  
+  Runs are a tuple of (start_rank, joker_indices) where joker_indices is a
+  tuple of indices into the run that are jokers.  I have no idea how to
+  know how long the run is?
+  """
   total_jokers = min(2, jokers)  # cap runs at 2 jokers
   runs = []
   ranks = [rank for rank, count in enumerate(rundex) if count]
@@ -164,7 +183,7 @@ def sets_from_colors(colors, jokers=0, min_size=Set.MIN):
 def iter_sets(hand):
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
-  for rank, colors in enumerate(hand.setdices):
+  for rank, colors in enumerate(hand.setdexen):
     if rank < 2:
       continue
     for combination in sets_from_colors(colors, hand.jokers):
@@ -174,9 +193,10 @@ def iter_sets(hand):
 def iter_runs(hand):
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
-  for color, rundex in hand.rundex.copy().items():
+  for color, rundex in hand.rundexen.copy().items():  # why is this copied?
     for start, jokers in ranks_from_rundex(rundex, hand.jokers):
-      yield Run.of(color, start, len(jokers), jokers)
+      #print('run: %s, %s, %s' % (color, start, jokers))
+      yield Run.of(color, start, jokers)
 
 
 def take_committed(hand, combos, commit=False):
@@ -289,29 +309,38 @@ def iter_runs_lut(hand):
   maybe_precompute()
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
-  for color, rundex in hand.rundex.copy().items():
+  for color, rundex in hand.rundexen.copy().items():  # why is this copied?
     vector = rundex_to_vector(rundex)
     for start, jokers in _RUN_LUT[min(hand.jokers, _RUN_LUT_MAX_JOKERS)][vector]:
-      yield Run.of(color, start, len(jokers), jokers)
+      #print('run: %s, %s, %s' % (color, start, jokers))
+      yield Run.of(color, start, jokers)
 
 
 def iter_sets_lut(hand):
   maybe_precompute()
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
-  for rank, colors in enumerate(hand.setdices):
+  for rank, colors in enumerate(hand.setdexen):
     if rank < 2:
       continue
     for combination in _SET_LUT[min(_SET_LUT_MAX_JOKERS, hand.jokers)][colors.value]:
       yield Set.of(rank, combination)
 
 
+class Add(list):
+  """A list of cards that can be added to a hand."""
+  def __str__(self):
+    return ' '.join('%s' % card for card in self)
+
+
+
 def iter_adds(hand, set_):
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
   yield Add()
-  for combination in sets_from_colors(hand.setdices[set_.rank], jokers=hand.jokers, min_size=1):
-    yield Add(Card.of(set_.rank, color) if color else Card.JOKER for color in combination)
+  for combination in sets_from_colors(hand.setdexen[set_.rank], jokers=hand.jokers, min_size=1):
+    yield Add(Card.of(set_.rank, color) if color is not None else Card.of(set_.rank, Color.SPADE, joker=True)
+              for color in combination)
 
 
 
@@ -358,17 +387,18 @@ def extend_from(run1: Run, run2: Run) -> Extend:
   return Extend(run1, left, right)
 
 
-def iter_extends(hand, run, run_iterator=iter_runs):
+def iter_extends(hand: Hand, run: Run, run_iterator=iter_runs):
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
 
-  new_hand = IndexedHand(cards=hand.iter_color(run.start.color))
+  new_hand = IndexedHand(cards=hand.iter_color(run.color))
   for card in run:
     new_hand.put_card(card)
   for _ in range(hand.jokers):
     new_hand.put_card(Card.joker())
 
   yield Extend(run)
+
   for extended_run in run_iterator(new_hand):
     try:
       yield extend_from(run, extended_run)

@@ -6,10 +6,10 @@ from liverpool.common import Deck, Objective
 from liverpool.generation import (
     IndexedHand,
     iter_melds,
-    iter_runs_lut as iter_runs,
-    iter_sets_lut as iter_sets,
-    #iter_runs as iter_runs,
-    #iter_sets as iter_sets,
+    iter_runs_lut,
+    iter_sets_lut,
+    iter_runs,
+    iter_sets,
     load_luts,
 )
 
@@ -19,7 +19,9 @@ def simulate(
     num_sets=1,
     iterations=100000,
     decks=2,
-    dealt_cards=10):
+    dealt_cards=10,
+    set_iterator=iter_sets,
+    run_iterator=iter_runs):
 
   start = time.time()
   total_with_sets = total_with_runs = total_with_lays = total_gone_out = 0
@@ -31,17 +33,17 @@ def simulate(
     for _ in range(dealt_cards):
       h.put_card(d.pop())
 
-    sets = list(iter_sets(h))
+    sets = list(set_iterator(h))
     if sets:
       total_with_sets += 1
 
-    runs = list(iter_runs(h))
+    runs = list(run_iterator(h))
     if runs:
       total_with_runs += 1
 
     objective = Objective(num_sets, num_runs)
 
-    lays = list(iter_melds(h, objective, run_iterator=iter_runs, set_iterator=iter_sets))
+    lays = list(iter_melds(h, objective, run_iterator=run_iterator, set_iterator=set_iterator))
     if lays:
       total_with_lays += 1
 
@@ -62,8 +64,9 @@ if len(sys.argv) == 2:
 
 
 # preload
-# load_luts()
+load_luts()
 
+print('Without LUTS')
 simulate(num_sets=2, num_runs=0, dealt_cards=10)
 simulate(num_sets=1, num_runs=1, dealt_cards=10)
 simulate(num_sets=0, num_runs=2, dealt_cards=10)
@@ -71,4 +74,13 @@ simulate(num_sets=3, num_runs=0, dealt_cards=10)
 simulate(num_sets=2, num_runs=1, dealt_cards=12)
 simulate(num_sets=1, num_runs=2, dealt_cards=12)
 simulate(num_sets=0, num_runs=3, dealt_cards=12)
+
+print('With LUTS')
+simulate(num_sets=2, num_runs=0, dealt_cards=10, run_iterator=iter_runs_lut, set_iterator=iter_sets_lut)
+simulate(num_sets=1, num_runs=1, dealt_cards=10, run_iterator=iter_runs_lut, set_iterator=iter_sets_lut)
+simulate(num_sets=0, num_runs=2, dealt_cards=10, run_iterator=iter_runs_lut, set_iterator=iter_sets_lut)
+simulate(num_sets=3, num_runs=0, dealt_cards=10, run_iterator=iter_runs_lut, set_iterator=iter_sets_lut)
+simulate(num_sets=2, num_runs=1, dealt_cards=12, run_iterator=iter_runs_lut, set_iterator=iter_sets_lut)
+simulate(num_sets=1, num_runs=2, dealt_cards=12, run_iterator=iter_runs_lut, set_iterator=iter_sets_lut)
+simulate(num_sets=0, num_runs=3, dealt_cards=12, run_iterator=iter_runs_lut, set_iterator=iter_sets_lut)
 
