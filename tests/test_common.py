@@ -20,22 +20,49 @@ def test_rank():
 
 
 def test_card():
-    pass
+    # basic construction
+    c = Card.of(2, Color.HEART)
+    assert c.rank == 2
+    assert c.color == Color.HEART
+    assert not c.is_joker
+
+    # joker construction
+    c = Card.joker()
+    assert c.is_joker
+    assert not c.is_materialized
+    assert c.rank is None
+    assert c.color is None
+
+    # materialized joker construction
+    c = Card.of(Rank.ACE, Color.SPADE, joker=True)
+    assert c.is_joker
+    assert c.is_materialized
+    assert c.rank == Rank.ACE
+    assert c.color == Color.SPADE
+
 
 
 class TestRun:
     def test_of(self):
         # test run w/ joker_indices = None
         r = Run.of(Color.HEART, start=2, length=4)
-        assert r.start == Card.of(2, Color.HEART)
         assert r.length == 4
-        assert r.jokers == (False, False, False, False)
+        assert r.cards == (
+            Card.of(2, Color.HEART),
+            Card.of(3, Color.HEART),
+            Card.of(4, Color.HEART),
+            Card.of(5, Color.HEART)
+        )
 
         # test run w/ joker_indices = (0, 2)
         r = Run.of(Color.HEART, start=2, length=4, joker_indices=(0, 2))
-        assert r.start == Card.of(2, Color.HEART)
         assert r.length == 4
-        assert r.jokers == (True, False, True, False)
+        assert r.cards == (
+            Card.of(2, Color.HEART, joker=True),
+            Card.of(3, Color.HEART),
+            Card.of(4, Color.HEART, joker=True),
+            Card.of(5, Color.HEART)
+        )
 
     def test_iter(self):
         r = Run.of(Color.HEART, start=2, length=4)
@@ -47,9 +74,9 @@ class TestRun:
 
         r = Run.of(Color.HEART, start=2, length=4, joker_indices=(0, 2))
         assert list(r) == [
-            Card.JOKER,
+            Card.of(2, Color.HEART, joker=True),
             Card.of(3, Color.HEART),
-            Card.JOKER,
+            Card.of(4, Color.HEART, joker=True),
             Card.of(5, Color.HEART)
         ]
 
@@ -88,6 +115,11 @@ class TestRun:
             Card.of(Rank.ACE, Color.HEART),
         ]
 
+        assert r.right == Card.of(Rank.JACK, Color.HEART)
+        assert r.next_right == Card.of(Rank.QUEEN, Color.HEART)
+        assert r.left == Card.of(8, Color.HEART)
+        assert r.next_left == Card.of(7, Color.HEART)
+
     def test_equality(self):
         r1 = Run.of(Color.HEART, start=2, length=4)
         r2 = Run.of(Color.HEART, start=2, length=4)
@@ -98,7 +130,7 @@ class TestRun:
         assert r3 == r4
         r5 = Run.of(Color.DIAMOND, start=2, length=4)
         assert r1 != r5
-    
+
     def test_extend(self):
         r1 = Run.of(Color.HEART, start=2, length=4)
         c1 = Card.of(6, Color.HEART)
@@ -109,7 +141,7 @@ class TestRun:
         c1 = Card.of(7, Color.HEART)
         with pytest.raises(r1.InvalidExtend):
             r2 = r1.extend(c1)
-        
+
         r1 = Run.of(Color.HEART, start=2, length=4)
         c1 = Card.of(6, Color.SPADE)
         with pytest.raises(r1.InvalidExtend):
@@ -117,53 +149,50 @@ class TestRun:
 
 class TestSet:
     def test_construction(self):
-        s = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.DIAMOND))
-        assert s.rank == Rank.ACE
-        assert s.jokers == 0
-        assert s.colors == tuple(sorted((Color.HEART, Color.HEART, Color.DIAMOND)))
+        s1 = Set((
+            Card.of(Rank.ACE, Color.HEART),
+            Card.of(Rank.ACE, Color.HEART),
+            Card.of(Rank.ACE, Color.DIAMOND)
+        ))
+        assert s1.rank == Rank.ACE
+        assert len(s1) == 3
+        assert s1 == s1
 
-        s = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, None))
-        assert s.rank == Rank.ACE
-        assert s.jokers == 1
-        assert s.colors == (Color.HEART, Color.HEART)
+        s2 = Set((
+            Card.of(Rank.ACE, Color.HEART, joker=True),
+            Card.of(Rank.ACE, Color.HEART),
+            Card.of(Rank.ACE, Color.DIAMOND)
+        ))
+        assert s2.rank == Rank.ACE
+        assert s2 == s2
+        assert s1 != s2
 
     def test_equality(self):
-        s1 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.DIAMOND))
-        s2 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.DIAMOND))
+        s1 = Set((Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.DIAMOND)))
+        s2 = Set((Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.DIAMOND)))
         assert s1 == s2
-        s3 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, None))
+        s3 = Set((Card.of(Rank.ACE, Color.HEART, joker=True), Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.DIAMOND)))
         assert s1 != s3
-        s4 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, None))
-        assert s3 == s4
-        s5 = Set(Rank.ACE, colors=(Color.DIAMOND, Color.HEART, Color.HEART))
-        assert s1 == s5
 
     def test_iteration(self):
-        s = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.DIAMOND))
+        s = Set((Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.DIAMOND)))
         assert list(s) == [
             Card.of(Rank.ACE, Color.HEART),
             Card.of(Rank.ACE, Color.HEART),
             Card.of(Rank.ACE, Color.DIAMOND),
         ]
-        s = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, None))
-        assert list(s) == [
-            Card.JOKER,
-            Card.of(Rank.ACE, Color.HEART),
-            Card.of(Rank.ACE, Color.HEART),
-        ]
 
     def test_extend(self):
-        s1 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.DIAMOND))
+        s1 = Set((Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.DIAMOND)))
         c1 = Card.of(Rank.ACE, Color.SPADE)
         s2 = s1.extend(c1)
-        assert s2 == Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.DIAMOND, Color.SPADE))
+        assert s2 == Set((
+            Card.of(Rank.ACE, Color.HEART),
+            Card.of(Rank.ACE, Color.HEART),
+            Card.of(Rank.ACE, Color.DIAMOND),
+            Card.of(Rank.ACE, Color.SPADE)))
 
-        s1 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, None))
-        c1 = Card.of(Rank.ACE, Color.SPADE)
-        s2 = s1.extend(c1)
-        assert s2 == Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.SPADE, None))
-
-        s1 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, None))
+        s1 = Set((Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.HEART), Card.of(Rank.ACE, Color.DIAMOND, joker=True)))
         c1 = Card.of(Rank.KING, Color.DIAMOND)
         with pytest.raises(s1.InvalidExtend):
             s2 = s1.extend(c1)
@@ -210,10 +239,15 @@ class TestDeck:
 
     def test_take(self):
         d = Deck.new(1)
-        d.take(Card.JOKER)
-        d.take(Card.JOKER)
+        d.take(Card.joker())
+        d.take(Card.joker())
         with pytest.raises(d.InvalidTake):
-            d.take(Card.JOKER)
+            d.take(Card.joker())
         d.take(Card.of(2, Color.HEART))
         with pytest.raises(d.InvalidTake):
             d.take(Card.of(2, Color.HEART))
+
+        d = Deck.new(1)
+        with pytest.raises(d.InvalidTake):
+            # Can't take materialized jokers
+            d.take(Card.of(2, Color.HEART, joker=True))

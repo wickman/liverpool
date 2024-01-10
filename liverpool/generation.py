@@ -91,7 +91,7 @@ class IndexedHand(Hand):
 
   def take_card(self, card):
     taken_card = super(IndexedHand, self).take_card(card)
-    if taken_card != Card.JOKER:
+    if not taken_card.is_joker:
       self.rundex[card.color][card.rank] -= 1
       self.setdices[card.rank].remove(card.color)
     return taken_card
@@ -99,7 +99,7 @@ class IndexedHand(Hand):
   def put_card(self, card):
     super(IndexedHand, self).put_card(card)
 
-    if card != Card.JOKER:
+    if not card.is_joker:
       self.rundex[card.color][card.rank] += 1
       self.setdices[card.rank].append(card.color)
 
@@ -168,7 +168,7 @@ def iter_sets(hand):
     if rank < 2:
       continue
     for combination in sets_from_colors(colors, hand.jokers):
-      yield Set(rank, combination)
+      yield Set.of(rank, combination)
 
 
 def iter_runs(hand):
@@ -176,7 +176,7 @@ def iter_runs(hand):
     hand = IndexedHand(cards=list(hand))
   for color, rundex in hand.rundex.copy().items():
     for start, jokers in ranks_from_rundex(rundex, hand.jokers):
-      yield Run(Card.of(start, color), jokers)
+      yield Run.of(color, start, len(jokers), jokers)
 
 
 def take_committed(hand, combos, commit=False):
@@ -292,7 +292,7 @@ def iter_runs_lut(hand):
   for color, rundex in hand.rundex.copy().items():
     vector = rundex_to_vector(rundex)
     for start, jokers in _RUN_LUT[min(hand.jokers, _RUN_LUT_MAX_JOKERS)][vector]:
-      yield Run(Card.of(start, color), jokers)
+      yield Run.of(color, start, len(jokers), jokers)
 
 
 def iter_sets_lut(hand):
@@ -303,7 +303,7 @@ def iter_sets_lut(hand):
     if rank < 2:
       continue
     for combination in _SET_LUT[min(_SET_LUT_MAX_JOKERS, hand.jokers)][colors.value]:
-      yield Set(rank, combination)
+      yield Set.of(rank, combination)
 
 
 def iter_adds(hand, set_):
@@ -337,7 +337,7 @@ class Extend:
 
 
 def extend_from(run1: Run, run2: Run) -> Extend:
-  if run1.start.color != run2.start.color:
+  if run1.color != run2.color:
     raise ValueError('Runs must have the same color.')
 
   my_cards: List[Card] = list(run1)
@@ -366,7 +366,7 @@ def iter_extends(hand, run, run_iterator=iter_runs):
   for card in run:
     new_hand.put_card(card)
   for _ in range(hand.jokers):
-    new_hand.put_card(Card.JOKER)
+    new_hand.put_card(Card.joker())
 
   yield Extend(run)
   for extended_run in run_iterator(new_hand):

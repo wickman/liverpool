@@ -139,29 +139,59 @@ class Card:
 
   __slots__ = ('value',)
 
-  JOKER: "Card" = None  # mypy: allow-untyped-defs
-  JOKER_VALUE = 0
   MIN = Rank.MIN + Color.MIN * (Rank.MAX + 1)
   MAX = Rank.MAX + Color.MAX * (Rank.MAX + 1)
+  _JOKER_MASK = 1 << 6
+  JOKER_VALUE = _JOKER_MASK
 
   @classmethod
-  def of(cls, rank: int, color: int) -> "Card":
-    return cls(Rank.validate(rank) + Color.validate(color) * (Rank.MAX + 1))
+  def joker(cls) -> "Card":
+    return cls(cls._JOKER_MASK)
+
+  @classmethod
+  def of(cls, rank: int, color: int, joker: bool = False) -> "Card":
+    return cls(Rank.validate(rank) + Color.validate(color) * (Rank.MAX + 1) + (cls._JOKER_MASK if joker else 0))
 
   def __init__(self, value: int):
     self.value = value
     if not isinstance(value, int):
       raise TypeError('Card value must be an integer, got %s' % type(value))
-    if self.value != self.JOKER_VALUE and (self.value < self.MIN or self.value > self.MAX):
+    masked_value = value & ~self._JOKER_MASK
+    if masked_value != 0 and (masked_value < self.MIN or masked_value > self.MAX):
       raise ValueError('Invalid card value: %s' % value)
 
   @property
-  def color(self):
-    return None if self.value == 0 else self.value // (Rank.MAX + 1)
+  def is_joker(self) -> bool:
+    return (self.value & self._JOKER_MASK) != 0
 
   @property
-  def rank(self):
-    return None if self.value == 0 else self.value % (Rank.MAX + 1)
+  def is_materialized(self) -> bool:
+    return (self.value & ~self._JOKER_MASK) != 0
+
+  @property
+  def color(self) -> int:
+    masked_value = self.value & ~self._JOKER_MASK
+    return None if masked_value == 0 else masked_value // (Rank.MAX + 1)
+
+  @property
+  def rank(self) -> int:
+    masked_value = self.value & ~self._JOKER_MASK
+    return None if masked_value == 0 else masked_value % (Rank.MAX + 1)
+
+  def as_common(self) -> "Card":
+    # return the card as a non-joker variant
+    return Card.of(self.rank, self.color)
+
+  def materialize(self, rank: int, color: int = 0) -> "Card":
+    if not self.is_joker:
+      raise ValueError('Cannot materialize a non-joker card.')
+    return Card.of(rank, color, joker=True)
+
+  def dematerialized(self) -> "Card":
+    if self.is_joker:
+      return Card.joker()
+    else:
+      return self
 
   def __hash__(self):
     return hash(self.value)
@@ -177,18 +207,18 @@ class Card:
     return self.value == other.value
 
   def __str__(self):
-    if self.value == 0:
+    if self.value == self._JOKER_MASK:
       return '??'
-    return '%s%s' % (Rank.to_str(self.rank), Color.to_str(self.color))
+    return '%s%s%s' % (Rank.to_str(self.rank), Color.to_str(self.color), '?' if self.is_joker else '')
 
   def __repr__(self):
-    if self.value == 0:
-      return '%s.JOKER' % self.__class__.__name__
-    return '%s.of(%s, %s)' % (
-        self.__class__.__name__, Rank.to_repr(self.rank), Color.to_repr(self.color))
-
-
-Card.JOKER = Card(Card.JOKER_VALUE)
+    if self.value == self._JOKER_MASK:
+      return '%s.joker()' % self.__class__.__name__
+    return '%s.of(%s, %s%s)' % (
+        self.__class__.__name__,
+        Rank.to_repr(self.rank),
+        Color.to_repr(self.color),
+        ', joker=True' if self.is_joker else '')
 
 
 class Add(list):
@@ -198,15 +228,12 @@ class Add(list):
 
 
 class Run:
-  """A run of cards of the same color.
-
-  The run is represented by the first card and a list of booleans indicating Joker positions.
-  """
+  """A run of cards of the same color."""
 
   class Error(Exception): pass
   class InvalidExtend(Exception): pass
 
-  __slots__ = ('start', 'jokers')
+  __slots__ = ('cards',)
 
   MIN = 4
 
@@ -227,29 +254,55 @@ class Run:
     if joker_indices is not None:
       for joker_index in joker_indices:
         jokers[joker_index] = True
-    return cls(Card.of(start, color), jokers)
+    cards = [Card.of(start + offset, color, joker) for offset, joker in enumerate(jokers)]
+    return cls(cards)
 
-  def __init__(self, start: Card, jokers: Iterable[bool]) -> None:
-    if not isinstance(start, Card):
-      raise TypeError('Expected start to be a Card, got %s' % type(start))
-    if not isinstance(jokers, (tuple, list)):
-      raise TypeError('Expected jokers to be a tuple/list of booleans.')
-    self.start = start
-    self.jokers = tuple(bool(elt) for elt in jokers)
+  def __init__(self, cards: Iterable[Card]) -> None:
+    if not isinstance(cards, (tuple, list)):
+      raise TypeError('Expected cards to be a tuple/list of cards.')
+    if len(cards) < self.MIN:
+      raise ValueError('Expected at least %d cards, got %d' % (self.MIN, len(cards)))
+    if not all(isinstance(card, Card) for card in cards):
+      raise TypeError('Expected cards to be a tuple/list of cards.')
+    if not all(card.color == cards[0].color for card in cards):
+      raise ValueError('Expected all cards to be the same color.')
+    for index, card in enumerate(cards):
+      if card.rank != cards[0].rank + index:
+        raise ValueError('Expected cards to be in ascending order.')
+    self.cards = tuple(cards)
 
   @property
-  def length(self):
-    return len(self.jokers)
+  def color(self) -> int:
+    return self.cards[0].color
 
-  def extend(self, card: Card, as_joker: bool = False) -> "Run":
+  @property
+  def length(self) -> int:
+    return len(self.cards)
+
+  @property
+  def left(self) -> Card:
+    return self.cards[0]
+
+  @property
+  def next_left(self) -> Optional[Card]:
+    return Card.of(self.left.rank - 1, self.left.color) if self.left.rank > Rank.MIN else None
+
+  @property
+  def right(self) -> Card:
+    return self.cards[-1]
+
+  @property
+  def next_right(self) -> Optional[Card]:
+    return Card.of(self.right.rank + 1, self.right.color) if self.right.rank < Rank.MAX else None
+
+  def extend(self, card: Card) -> "Run":
     if not isinstance(card, Card):
       raise TypeError('Expected card to be a Card, got %s' % type(card))
-    if card.color != self.start.color:
-      raise self.InvalidExtend('Runs must have the same color.')
-    if card.rank == self.start.rank + self.length:
-      return Run(self.start, self.jokers + (as_joker,))
-    elif card.rank == self.start.rank - 1:
-      return Run(card, (as_joker,) + self.jokers)
+    common_card = card.as_common()
+    if common_card == self.next_left:
+      return Run((card,) + self.cards)
+    elif common_card == self.next_right:
+      return Run(self.cards + (card,))
     else:
       raise self.InvalidExtend('Card does not extend the run.')
 
@@ -257,28 +310,27 @@ class Run:
     return self.length
 
   def __hash__(self):
-    return hash((self.start, self.jokers))
+    return hash(b'run' + b''.join(card.value.to_bytes(1, 'big') for card in self.cards))
 
   def __eq__(self, other):
     if not isinstance(other, Run):
       return False
-    return self.start == other.start and self.jokers == other.jokers
+    return self.cards == other.cards
 
   def __iter__(self) -> Iterable[Card]:
     """Iterate over the cards in the run."""
-    for offset, joker in enumerate(self.jokers):
-      yield Card.JOKER if joker else Card.of(self.start.rank + offset, self.start.color)
+    for card in self.cards:
+      yield card
 
   def iter_left(self) -> Iterable[Card]:
     """Iterate, descending, over the cards to the left of the run."""
-    for rank in range(self.start.rank - 1, Rank.MIN - 1, -1):
-      yield Card.of(rank, self.start.color)
+    for rank in range(self.next_left.rank, Rank.MIN - 1, -1):
+      yield Card.of(rank, self.color)
 
   def iter_right(self) -> Iterable[Card]:
     """Iterate, ascending, over the cards to the right of the run."""
-    for rank in range(self.start.rank + len(self.jokers), Rank.MAX + 1):
-      yield Card.of(rank, self.start.color)
-
+    for rank in range(self.next_right.rank, Rank.MAX + 1):
+      yield Card.of(rank, self.color)
 
   def __str__(self):
     return ' '.join('%s' % card for card in self)
@@ -288,7 +340,7 @@ class Run:
 
 
 class Set(object):
-  __slots__ = ('rank', 'jokers', 'colors')
+  __slots__ = ('cards',)
 
   class Error(Exception): pass
   class InvalidExtend(Exception): pass
@@ -296,70 +348,71 @@ class Set(object):
   MIN = 3
 
   @classmethod
-  def partition_colors(cls, colors) -> Tuple[int, Tuple[int, ...]]:
-    """return a tuple of # jokers, remaining colors."""
-    return (sum(color is None for color in colors),
-            tuple(sorted([color for color in colors if color is not None])))
-
-  def __init__(self, rank: int, colors: Iterable[Optional[int]]) -> None:
+  def of(cls, rank: int, colors: Iterable[Optional[int]]) -> "Set":
+    if not isinstance(rank, int) or rank < Rank.MIN or rank > Rank.MAX:
+      raise TypeError('Expected rank to be an integer between %d and %d, got %s' % (
+          Rank.MIN, Rank.MAX, rank))
     if not isinstance(colors, (tuple, list)):
-      raise TypeError('Expected colors to be a tuple/list of colors or Nones.')
-    if len(colors) < self.MIN:
-      raise ValueError('Set not large enough!')
-    self.jokers, self.colors = self.partition_colors(
-        [color if color is None else Color.validate(color) for color in colors])
-    self.rank = Rank.validate(rank)
+      raise TypeError('Expected colors to be a tuple/list of integers.')
+    # it is policy for the sake of sets to materialize jokers as a consistent color every time
+    cards = [Card.of(rank, color) if color is not None else Card.of(rank, Color.SPADE, joker=True)
+             for color in colors]
+    return cls(cards)
+
+  def __init__(self, cards: Iterable[Card]) -> None:
+    if not isinstance(cards, (tuple, list)):
+      raise TypeError('Expected cards to be a tuple/list of cards.')
+    if not all(isinstance(card, Card) for card in cards):
+      raise TypeError('Expected cards to be a tuple/list of cards.')
+    if len(cards) < self.MIN:
+      raise ValueError('Expected at least %d cards, got %d' % (self.MIN, len(cards)))
+    if not all(card.rank == cards[0].rank for card in cards):
+      raise ValueError('Expected all cards to be the same rank.')
+    self.cards = tuple(sorted(cards))
+
+  @property
+  def rank(self) -> int:
+    return self.cards[0].rank
 
   def extend(self, card: Card) -> "Set":
     if not isinstance(card, Card):
       raise TypeError('Expected card to be a Card, got %s' % type(card))
-    if card != Card.JOKER and card.rank != self.rank:
+    if card.rank != self.rank:
       raise self.InvalidExtend('Card does not match set rank.')
-    if card == Card.JOKER:
-      return Set(self.rank, self.colors + (self.jokers + 1) * (None,))
-    else:
-      return Set(self.rank, self.colors + (card.color,) + self.jokers * (None,))
+    return Set(self.cards + (card,))
 
   @property
-  def length(self):
-    return self.jokers + len(self.colors)
+  def length(self) -> int:
+    return len(self.cards)
 
   def __len__(self):
     return self.length
 
   def _as_tuple(self):
-    return (self.length, self.rank, self.jokers, self.colors)
+    return self.cards
 
   def __hash__(self):
-    return hash(self._as_tuple())
+    return hash(b'set' + b''.join(card.value.to_bytes(1, 'big') for card in self.cards))
 
   def __lt__(self, other):
     if not isinstance(other, Set):
-      raise TypeError
+      raise TypeError('Expected other to be a Set, got %s' % type(other))
     return self._as_tuple() < other._as_tuple()
 
   def __eq__(self, other):
     if not isinstance(other, Set):
       return False
-    return self.rank == other.rank and (
-        self.jokers == other.jokers and
-        self.colors == other.colors)
+    return self.cards == other.cards
 
   def __iter__(self):
-    for _ in range(self.jokers):
-      yield Card.JOKER
-    for color in self.colors:
-      yield Card.of(self.rank, color)
+    for card in self.cards:
+      yield card
 
   def __str__(self):
-    def render_joker(card):
-      if card == Card.JOKER:
-        return '%s?' % Rank.to_str(self.rank)
-      return card
-    return ' '.join('%s' % render_joker(card) for card in self)
+    return ' '.join('%s' % card for card in self.cards)
 
   def __repr__(self):
-    return '%s.from_cards(%s)' % (self.__class__.__name__, ', '.join(map(repr, self)))
+    return '%s((%s))' % (self.__class__.__name__, ', '.join(map(repr, self)))
 
 
 class Objective(object):
@@ -405,7 +458,7 @@ class Meld:
 
   def enumerate(self):
     return enumerate(self)
-  
+
   """
   def extend(self, edit: MeldEdit) -> "Meld":
     sets = self.sets[:]
@@ -460,7 +513,7 @@ class Deck:
         for color in Color.iter():
           cards.append(Card.of(rank, color))
       for _ in range(2):
-        cards.append(Card.JOKER)
+        cards.append(Card.joker())
     cls._RANDOM.shuffle(cards)
     return cls(cards)
 

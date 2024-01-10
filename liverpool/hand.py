@@ -38,7 +38,7 @@ class Hand:
     return cls(cards)
 
   def __init__(self, cards=None) -> None:
-    self.cards: array[int] = array('B', [0]*(Card.MAX + 1))
+    self.cards: array[int] = array('B', [0]*(Card.JOKER_VALUE + 1))
     # stack of takes, None represents start of a "transaction"
     self.taken: List[Optional[Card]] = []
     for card in (cards or []):
@@ -47,7 +47,7 @@ class Hand:
 
   @property
   def jokers(self) -> int:
-    return self.cards[Card.JOKER.value]
+    return self.cards[Card.JOKER_VALUE]
 
   @property
   def empty(self) -> bool:
@@ -92,11 +92,11 @@ class Hand:
 
   def put_combo(self, combo: Iterable[Card]):
     for card in combo:
-      self.put_card(card)
+      self.put_card(card.dematerialized())
 
   def take_combo(self, combo: Iterable[Card]):
     for card in combo:
-      self.take_card(card)
+      self.take_card(card.dematerialized())
 
   def __str__(self):
     return 'Hand(%s)' % ' '.join('%s' % card for card in self)

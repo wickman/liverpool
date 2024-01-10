@@ -29,15 +29,22 @@ def test_set_simple():
   assert len(sets2) == 1
   assert sets1 == sets2
 
-  h1.put_card(Card.JOKER)
+  h1.put_card(Card.joker())
   sets1 = list(iter_sets(h1))
   assert len(sets1) == 5
   assert sorted(sets1) == sorted([
-      Set(2, (Color.SPADE, Color.CLUB, Color.DIAMOND)),
-      Set(2, (Color.SPADE, Color.CLUB, Color.DIAMOND, None)),
-      Set(2, (None, Color.CLUB, Color.DIAMOND)),
-      Set(2, (Color.SPADE, None, Color.DIAMOND)),
-      Set(2, (Color.SPADE, Color.CLUB, None)),
+    Set.of(2, [Color.DIAMOND, Color.CLUB, Color.SPADE]),
+    Set.of(2, [Color.DIAMOND, Color.CLUB, Color.SPADE, None]),
+    Set.of(2, [         None, Color.CLUB, Color.SPADE]),
+    Set.of(2, [Color.DIAMOND,       None, Color.SPADE]),
+    Set.of(2, [Color.DIAMOND, Color.CLUB,        None]),
+  ])
+  assert sorted(sets1) == sorted([
+      Set((Card.of(2, Color.SPADE), Card.of(2, Color.CLUB), Card.of(2, Color.DIAMOND))),
+      Set((Card.of(2, Color.SPADE), Card.of(2, Color.CLUB), Card.of(2, Color.DIAMOND), Card.of(2, Color.SPADE, joker=True))),
+      Set((Card.of(2, Color.SPADE, joker=True), Card.of(2, Color.CLUB), Card.of(2, Color.DIAMOND))),
+      Set((Card.of(2, Color.SPADE), Card.of(2, Color.SPADE, joker=True), Card.of(2, Color.DIAMOND))),
+      Set((Card.of(2, Color.SPADE), Card.of(2, Color.CLUB), Card.of(2, Color.SPADE, joker=True))),
   ])
 
 
@@ -51,10 +58,10 @@ def test_lay_regression1():
     Card.of(5, Color.SPADE),
     Card.of(5, Color.HEART),
     Card.of(Rank.KING, Color.DIAMOND),
-    Card.JOKER,
-    Card.JOKER,
-    Card.JOKER,
-    Card.JOKER,
+    Card.joker(),
+    Card.joker(),
+    Card.joker(),
+    Card.joker(),
   ]
 
   for card in cards:
