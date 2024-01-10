@@ -5,10 +5,7 @@ from typing import List, Optional, Iterable
 
 from .common import (
     Card,
-    Run,
-    Set,
-    Add,
-    Extend,
+    Deck,
 )
 
 
@@ -30,7 +27,7 @@ class Hand:
   __slots__ = ('cards', 'taken')
 
   @classmethod
-  def from_deck(cls, deck, count) -> "Hand":
+  def from_deck(cls, deck: Deck, count: int) -> "Hand":
     cards = []
     with deck:
       try:
@@ -93,11 +90,11 @@ class Hand:
 
     self.cards[card.value] += 1
 
-  def put_combo(self, combo):
+  def put_combo(self, combo: Iterable[Card]):
     for card in combo:
       self.put_card(card)
 
-  def take_combo(self, combo):
+  def take_combo(self, combo: Iterable[Card]):
     for card in combo:
       self.take_card(card)
 

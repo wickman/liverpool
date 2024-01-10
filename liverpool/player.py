@@ -16,13 +16,23 @@ class Game(object):
     (Objective(0, 3), 12),
   )
 
+  PLAYERS_TO_DECKS = {
+    2: 2,
+    3: 2,
+    4: 2,
+    5: 3,
+    6: 3,
+    7: 3,
+    8: 3
+  }
+
 
 class Trick(object):
   def __init__(self, objective, dealt_cards, num_players=4):
     self.objective = objective
     self.deck = Deck(count=2)
     self.discards = []
-    self.players = [Player(k, num_players)) for k in range(num_players)]
+    self.players = [Player(k, num_players) for k in range(num_players)]
     self.stack = []
     self.deal(dealt_cards)
 
@@ -94,6 +104,23 @@ class Move(object):
     self.discard = discard
 
 
+"""
+PlayerView should encapsulate the probability distributions of expected cards from the other player.
+For example, when the game starts, the player is dealt N cards.  These come from a known probability distribution
+i.e. 2 decks x 54 cards.  We can stochastically generate the sample hands from the probability distribution.
+Over time this distribution changes, e.g.:
+  player discards card X, so we can change the distribution of unknown cards (e.g. 2 decks x 54 cards - 1)
+  player picks up card Y, so we can change the distribution of unknown to known cards
+
+If player picks up card X and discards card X, that doesn't definitely say they don't have card X because it
+could be sampled out of the original distribution.  IF player1 discards card Y, this actually reflects the
+distribution of other players as well.
+
+So we should have the following:
+   * known_cards: set of cards known to be in the player's hand
+   * unknown_cards: number of unknown cards -- the distribution is always taken from
+        Deck - [your cards] - sum(p.known_cards for p in player_views)
+"""
 class PlayerView(object):
   def __init__(self, meld=None, visible_cards=None, invisible_cards=0):
     self.meld = meld

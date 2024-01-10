@@ -4,7 +4,6 @@ from liverpool.common import (
     Color,
     Rank,
     Card,
-    Extend,
     Run,
     Set,
     Meld,
@@ -89,36 +88,6 @@ class TestRun:
             Card.of(Rank.ACE, Color.HEART),
         ]
 
-    def test_extend_from(self):
-        # no-op extend raises InvalidExtend
-        r1 = Run.of(Color.HEART, start=2, length=4)
-        r2 = Run.of(Color.HEART, start=2, length=4)
-        with pytest.raises(r1.InvalidExtend):
-          e = r1.extend_from(r2)
-
-        # extend right
-        r2 = Run.of(Color.HEART, start=2, length=5)
-        e = r1.extend_from(r2)
-        assert e.run == r1
-        assert e.left == []
-        assert e.right == [Card.of(6, Color.HEART)]
-
-        # extend left
-        r1 = Run.of(Color.HEART, start=3, length=4)
-        r2 = Run.of(Color.HEART, start=2, length=5)
-        e = r1.extend_from(r2)
-        assert e.run == r1
-        assert e.left == [Card.of(2, Color.HEART)]
-        assert e.right == []
-
-        # extend left and right
-        r1 = Run.of(Color.HEART, start=3, length=4)
-        r2 = Run.of(Color.HEART, start=2, length=6)
-        e = r1.extend_from(r2)
-        assert e.run == r1
-        assert e.left == [Card.of(2, Color.HEART)]
-        assert e.right == [Card.of(7, Color.HEART)]
-
     def test_equality(self):
         r1 = Run.of(Color.HEART, start=2, length=4)
         r2 = Run.of(Color.HEART, start=2, length=4)
@@ -129,8 +98,22 @@ class TestRun:
         assert r3 == r4
         r5 = Run.of(Color.DIAMOND, start=2, length=4)
         assert r1 != r5
+    
+    def test_extend(self):
+        r1 = Run.of(Color.HEART, start=2, length=4)
+        c1 = Card.of(6, Color.HEART)
+        r2 = r1.extend(c1)
+        assert r2 == Run.of(Color.HEART, start=2, length=5)
 
-
+        r1 = Run.of(Color.HEART, start=2, length=4)
+        c1 = Card.of(7, Color.HEART)
+        with pytest.raises(r1.InvalidExtend):
+            r2 = r1.extend(c1)
+        
+        r1 = Run.of(Color.HEART, start=2, length=4)
+        c1 = Card.of(6, Color.SPADE)
+        with pytest.raises(r1.InvalidExtend):
+            r2 = r1.extend(c1)
 
 class TestSet:
     def test_construction(self):
@@ -169,6 +152,21 @@ class TestSet:
             Card.of(Rank.ACE, Color.HEART),
         ]
 
+    def test_extend(self):
+        s1 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.DIAMOND))
+        c1 = Card.of(Rank.ACE, Color.SPADE)
+        s2 = s1.extend(c1)
+        assert s2 == Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.DIAMOND, Color.SPADE))
+
+        s1 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, None))
+        c1 = Card.of(Rank.ACE, Color.SPADE)
+        s2 = s1.extend(c1)
+        assert s2 == Set(Rank.ACE, colors=(Color.HEART, Color.HEART, Color.SPADE, None))
+
+        s1 = Set(Rank.ACE, colors=(Color.HEART, Color.HEART, None))
+        c1 = Card.of(Rank.KING, Color.DIAMOND)
+        with pytest.raises(s1.InvalidExtend):
+            s2 = s1.extend(c1)
 
 
 class TestMeld:

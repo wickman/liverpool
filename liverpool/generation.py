@@ -15,9 +15,7 @@ from .common import (
    Add,
    Card,
    Color,
-   Extend,
    Meld,
-   MeldUpdate,
    Rank,
    Run,
    Set,
@@ -316,6 +314,50 @@ def iter_adds(hand, set_):
     yield Add(Card.of(set_.rank, color) if color else Card.JOKER for color in combination)
 
 
+
+class Extend:
+  """A union of two runs that yields the overlapping run and extensions to the left and right."""
+  __slots__ = ('run', 'left', 'right')
+
+  def __init__(self, run: "Run", left: Optional[List[Card]] = None, right: Optional[List[Card]] = None) -> None:
+    self.run: Run = run
+    self.left: List[Card] = left if left is not None else []
+    self.right: List[Card] = right if right is not None else []
+
+  def __iter__(self):
+    return iter(self.left + self.right)
+
+  def __str__(self):
+    run_str = '(%s)' % self.run
+    if self.left:
+      run_str = ' '.join('%s' % card for card in self.left) + '++' + run_str
+    if self.right:
+      run_str += '++' + ' '.join('%s' % card for card in self.right)
+    return run_str
+
+
+def extend_from(run1: Run, run2: Run) -> Extend:
+  if run1.start.color != run2.start.color:
+    raise ValueError('Runs must have the same color.')
+
+  my_cards: List[Card] = list(run1)
+  other_cards: List[Card] = list(run2)
+
+  left = []
+  while other_cards and other_cards[0] < my_cards[0]:
+    left.append(other_cards.pop(0))
+
+  other_cards_overlap, right = other_cards[0:len(my_cards)], other_cards[len(my_cards):]
+
+  if other_cards_overlap != my_cards:
+    raise ValueError('Runs must overlap.')
+
+  if not left and not right:
+    raise ValueError('Empty extension.')
+
+  return Extend(run1, left, right)
+
+
 def iter_extends(hand, run, run_iterator=iter_runs):
   if not isinstance(hand, IndexedHand):
     hand = IndexedHand(cards=list(hand))
@@ -329,8 +371,8 @@ def iter_extends(hand, run, run_iterator=iter_runs):
   yield Extend(run)
   for extended_run in run_iterator(new_hand):
     try:
-      yield run.extend_from(extended_run)
-    except Run.InvalidExtend:
+      yield extend_from(run, extended_run)
+    except ValueError:
       continue
 
 

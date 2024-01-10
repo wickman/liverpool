@@ -1,11 +1,14 @@
+import pytest
+
 from liverpool.common import (
     Card,
     Color,
     Objective,
     Rank,
+    Run,
     Set,
 )
-from liverpool.generation import iter_melds, iter_sets
+from liverpool.generation import iter_melds, iter_sets, Extend, extend_from
 from liverpool.hand import Hand
 
 
@@ -61,5 +64,32 @@ def test_lay_regression1():
 
   assert len(list(iter_melds(h, objective))) == 26
 
+def test_extend_from():
+    # no-op extend raises InvalidExtend
+    r1 = Run.of(Color.HEART, start=2, length=4)
+    r2 = Run.of(Color.HEART, start=2, length=4)
+    with pytest.raises(ValueError):
+      e = extend_from(r1, r2)
 
+    # extend right
+    r2 = Run.of(Color.HEART, start=2, length=5)
+    e = extend_from(r1, r2)
+    assert e.run == r1
+    assert e.left == []
+    assert e.right == [Card.of(6, Color.HEART)]
 
+    # extend left
+    r1 = Run.of(Color.HEART, start=3, length=4)
+    r2 = Run.of(Color.HEART, start=2, length=5)
+    e = extend_from(r1, r2)
+    assert e.run == r1
+    assert e.left == [Card.of(2, Color.HEART)]
+    assert e.right == []
+
+    # extend left and right
+    r1 = Run.of(Color.HEART, start=3, length=4)
+    r2 = Run.of(Color.HEART, start=2, length=6)
+    e = extend_from(r1, r2)
+    assert e.run == r1
+    assert e.left == [Card.of(2, Color.HEART)]
+    assert e.right == [Card.of(7, Color.HEART)]

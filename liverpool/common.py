@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from dataclasses import dataclass
 import random
 import sys
 
@@ -113,6 +114,26 @@ class Rank:
     return range(cls.MIN, cls.MAX + 1)
 
 
+"""
+Right now Card has a single integer as its storage.  It represents a JOKER as 0,
+and all other cards as rank + color * (rank.max + 1), where rank is 2..14 and color is
+0..3.  This means that valid values are Card.min (2) to Card.max (59), which fits within
+5 bits.
+
+We should be able to set the 7th bit (64) to indicate that this is a materialized joker.
+That means that it's a Joker but it's been materialized to a specific rank and color.
+We need to be more careful this way but it makes a *lot* of things easier, assuming
+we minimize the number of places where this logic needs to take place, specifically
+around things like move generation and meld editing.
+
+We should have a method on Card that materializes a Joker into a materialized joker, i.e.
+Card.materialize(rank, color) -> Card that asserts ValueError if it's not a joker.
+
+This doesn't require any meaningful changes to Hand.
+We should reimplement Run so that it is a proper sequence of Cards with materialized jokers.
+We should reimplement Set so that it's a Set of Cards with materialized jokers.
+"""
+
 class Card:
   """A card in the game of Liverpool."""
 
@@ -120,18 +141,18 @@ class Card:
 
   JOKER: "Card" = None  # mypy: allow-untyped-defs
   JOKER_VALUE = 0
-  MIN = Rank.MIN + Color.MIN * Rank.MIN - 1
+  MIN = Rank.MIN + Color.MIN * (Rank.MAX + 1)
   MAX = Rank.MAX + Color.MAX * (Rank.MAX + 1)
 
   @classmethod
-  def of(cls, rank, color) -> "Card":
+  def of(cls, rank: int, color: int) -> "Card":
     return cls(Rank.validate(rank) + Color.validate(color) * (Rank.MAX + 1))
 
   def __init__(self, value: int):
     self.value = value
     if not isinstance(value, int):
       raise TypeError('Card value must be an integer, got %s' % type(value))
-    if self.value != self.JOKER_VALUE and (self.value < self.MIN and self.value > self.MAX):
+    if self.value != self.JOKER_VALUE and (self.value < self.MIN or self.value > self.MAX):
       raise ValueError('Invalid card value: %s' % value)
 
   @property
@@ -141,13 +162,6 @@ class Card:
   @property
   def rank(self):
     return None if self.value == 0 else self.value % (Rank.MAX + 1)
-
-  def iter_rank(self) -> Iterable["Card"]:
-    # only support rank iteration for non-jokers
-    assert self.color is not None
-    assert self.rank is not None
-    for rank in range(self.rank, Rank.MAX + 1):
-      yield Card.of(rank, self.color)
 
   def __hash__(self):
     return hash(self.value)
@@ -170,8 +184,8 @@ class Card:
   def __repr__(self):
     if self.value == 0:
       return '%s.JOKER' % self.__class__.__name__
-    return '%s(%s, %s)' % (
-        self.__class__.__name__, Color.to_repr(self.color), Rank.to_repr(self.rank))
+    return '%s.of(%s, %s)' % (
+        self.__class__.__name__, Rank.to_repr(self.rank), Color.to_repr(self.color))
 
 
 Card.JOKER = Card(Card.JOKER_VALUE)
@@ -181,27 +195,6 @@ class Add(list):
   """A list of cards that can be added to a hand."""
   def __str__(self):
     return ' '.join('%s' % card for card in self)
-
-
-class Extend:
-  """A union of two runs that yields the overlapping run and extensions to the left and right."""
-  __slots__ = ('run', 'left', 'right')
-
-  def __init__(self, run: "Run", left: Optional[List[Card]] = None, right: Optional[List[Card]] = None) -> None:
-    self.run: Run = run
-    self.left: List[Card] = left if left is not None else []
-    self.right: List[Card] = right if right is not None else []
-
-  def __iter__(self):
-    return iter(self.left + self.right)
-
-  def __str__(self):
-    run_str = '(%s)' % self.run
-    if self.left:
-      run_str = ' '.join('%s' % card for card in self.left) + '++' + run_str
-    if self.right:
-      run_str += '++' + ' '.join('%s' % card for card in self.right)
-    return run_str
 
 
 class Run:
@@ -216,23 +209,6 @@ class Run:
   __slots__ = ('start', 'jokers')
 
   MIN = 4
-
-  # TODO: Reimplement this correctly if we need it
-  #@classmethod
-  #def from_cards(cls, cards) -> "Run":
-  #  if len(cards) < cls.MIN:
-  #    raise ValueError('Run is not of minimum length %d' % cls.MIN)
-  #  if not all(isinstance(card, Card) for card in cards):
-  #    raise TypeError('All cards must be of type Card.')
-  #  start_card = cards[0]
-  #  jokers = []
-  #  for rank_offset, card in enumerate(cards):
-  #    if card.color != start_card.color:
-  #      raise ValueError('Subsequent cards do not have the correct color.')
-  #    if card.rank is not None and start_card.rank + rank_offset != card.rank:
-  #      raise ValueError('Not a valid run: %s is out of order.' % card)
-  #    jokers.append(card.rank is None)
-  #  return cls(start_card, jokers)
 
   @classmethod
   def of(cls, color: int, start: int, length: int, joker_indices: Optional[List[int]] = None) -> "Run":
@@ -253,7 +229,7 @@ class Run:
         jokers[joker_index] = True
     return cls(Card.of(start, color), jokers)
 
-  def __init__(self, start, jokers):
+  def __init__(self, start: Card, jokers: Iterable[bool]) -> None:
     if not isinstance(start, Card):
       raise TypeError('Expected start to be a Card, got %s' % type(start))
     if not isinstance(jokers, (tuple, list)):
@@ -264,6 +240,18 @@ class Run:
   @property
   def length(self):
     return len(self.jokers)
+
+  def extend(self, card: Card, as_joker: bool = False) -> "Run":
+    if not isinstance(card, Card):
+      raise TypeError('Expected card to be a Card, got %s' % type(card))
+    if card.color != self.start.color:
+      raise self.InvalidExtend('Runs must have the same color.')
+    if card.rank == self.start.rank + self.length:
+      return Run(self.start, self.jokers + (as_joker,))
+    elif card.rank == self.start.rank - 1:
+      return Run(card, (as_joker,) + self.jokers)
+    else:
+      raise self.InvalidExtend('Card does not extend the run.')
 
   def __len__(self):
     return self.length
@@ -291,28 +279,6 @@ class Run:
     for rank in range(self.start.rank + len(self.jokers), Rank.MAX + 1):
       yield Card.of(rank, self.start.color)
 
-  def extend_from(self, other: "Run") -> Extend:
-    if not isinstance(other, Run):
-      raise TypeError('Expected other to be a Run, got %s' % type(other))
-    if self.start.color != other.start.color:
-      raise self.InvalidExtend('Runs must have the same color.')
-
-    my_cards: List[Card] = list(self)
-    other_cards: List[Card] = list(other)
-
-    left = []
-    while other_cards and other_cards[0] < my_cards[0]:
-      left.append(other_cards.pop(0))
-
-    other_cards_overlap, right = other_cards[0:len(my_cards)], other_cards[len(my_cards):]
-
-    if other_cards_overlap != my_cards:
-      raise self.InvalidExtend()
-
-    if not left and not right:
-      raise self.InvalidExtend('Empty extension.')
-
-    return Extend(self, left, right)
 
   def __str__(self):
     return ' '.join('%s' % card for card in self)
@@ -323,6 +289,9 @@ class Run:
 
 class Set(object):
   __slots__ = ('rank', 'jokers', 'colors')
+
+  class Error(Exception): pass
+  class InvalidExtend(Exception): pass
 
   MIN = 3
 
@@ -340,6 +309,16 @@ class Set(object):
     self.jokers, self.colors = self.partition_colors(
         [color if color is None else Color.validate(color) for color in colors])
     self.rank = Rank.validate(rank)
+
+  def extend(self, card: Card) -> "Set":
+    if not isinstance(card, Card):
+      raise TypeError('Expected card to be a Card, got %s' % type(card))
+    if card != Card.JOKER and card.rank != self.rank:
+      raise self.InvalidExtend('Card does not match set rank.')
+    if card == Card.JOKER:
+      return Set(self.rank, self.colors + (self.jokers + 1) * (None,))
+    else:
+      return Set(self.rank, self.colors + (card.color,) + self.jokers * (None,))
 
   @property
   def length(self):
@@ -393,6 +372,20 @@ class Objective(object):
     self.num_runs = num_runs
 
 
+@dataclass
+class MeldEdit:
+  """An edit to a meld.
+
+  Runs can be edited by adding or removing cards from the left or right.
+  Sets can be edited by adding or removing cards of the same Rank.
+
+  Run.extend(card, as_joker=False)
+  Set.extend(card)
+  """
+  run_edits: List[Tuple[int, List[Card]]]
+  set_edits: List[Tuple[int, List[Card]]]
+
+
 class Meld:
   """A collection of sets and runs."""
 
@@ -410,6 +403,19 @@ class Meld:
   def __iter__(self):
     return iter(self._as_tuple())
 
+  def enumerate(self):
+    return enumerate(self)
+  
+  """
+  def extend(self, edit: MeldEdit) -> "Meld":
+    sets = self.sets[:]
+    runs = self.runs[:]
+    for index, cards in edit.set_edits:
+      for card in cards:
+        sets[index] = sets[index].extend(card)
+    for index, cards in edit.run_edits:
+  """
+
   def __eq__(self, other):
     if not isinstance(other, Meld):
       return False
@@ -420,10 +426,6 @@ class Meld:
 
   def __str__(self):
     return 'Meld(%s)' % '   '.join('%s' % combo for combo in (self.sets + self.runs))
-
-
-class MeldUpdate(list):
-  pass
 
 
 class DeckTransaction:
