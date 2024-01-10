@@ -2,9 +2,7 @@ from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from typing import Optional, List
 
-from .common import (
-    Hand, Deck, Card, Objective, Meld
-)
+from .common import Hand, Deck, Card, Objective, Meld
 from .generation import (
     iter_melds,
     iter_extends,
@@ -13,9 +11,10 @@ from .generation import (
     Add,
 )
 
+
 class Game:
-  # Objective, cards dealt
-  TRICKS = (
+    # Objective, cards dealt
+    TRICKS = (
         (Objective(2, 0), 10),
         (Objective(1, 1), 10),
         (Objective(0, 2), 10),
@@ -23,9 +22,9 @@ class Game:
         (Objective(2, 1), 12),
         (Objective(1, 2), 12),
         (Objective(0, 3), 12),
-  )
+    )
 
-  PLAYERS_TO_DECKS = {2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 3, 8: 3}
+    PLAYERS_TO_DECKS = {2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 3, 8: 3}
 
 
 @dataclass
@@ -34,8 +33,11 @@ class Edit:
     add: Optional[Add]
     extend: Optional[Extend]
 
+
 class Move:
-    def __init__(self, meld: Optional[Meld], edit: Optional[List[Edit]], discard: Optional[Card]) -> None:
+    def __init__(
+        self, meld: Optional[Meld], edit: Optional[List[Edit]], discard: Optional[Card]
+    ) -> None:
         self.meld = meld
         self.edit = edit or []
         self.discard = discard
@@ -60,21 +62,21 @@ class GameState:
     def last_action(self) -> Optional[Action]:
         return self.__actions[-1] if self.__actions else None
 
-    
+
 class Player(metaclass=ABC):
     def __init__(self, hand: Hand) -> None:
         self.hand = hand
-    
+
     def take(self, card: Card) -> None:
         self.hand.put_card(card)
-    
+
     def discard(self, card: Card) -> None:
         self.hand.take_card(card)
-    
+
     @abstractmethod
     def publish_action(self, action: Action) -> None:
         pass
-    
+
     @abstractmethod
     def accepts_discard(self, card: Card) -> bool:
         pass
@@ -89,14 +91,16 @@ class Player(metaclass=ABC):
 
 
 class Trick:
-    def __init__(self, objective: Objective, dealt_cards: int, num_players: int = 4) -> None:
+    def __init__(
+        self, objective: Objective, dealt_cards: int, num_players: int = 4
+    ) -> None:
         self.objective = objective
         self.deck = Deck.new(count=Game.PLAYERS_TO_DECKS[num_players])
         self.discards = []
         self.players = [Player(k, num_players) for k in range(num_players)]
         self.cursor = 1  # 0 is the dealer, 1 is the first to play
         self.deal(dealt_cards)
-    
+
     @property
     def dealer(self):
         return self.players[0]
@@ -104,7 +108,7 @@ class Trick:
     @property
     def active_player(self):
         return self.players[self.cursor]
-    
+
     def deal(self, nr_cards: int) -> None:
         for _ in range(nr_cards):
             for player in self.players:
@@ -116,7 +120,7 @@ class Trick:
         if self.active_player.accepts_discard(self.discards[-1]):
             self.active_player.take(self.discards.pop())
         else:
-            for player in self.players[self.cursor:] + self.players[0:self.cursor]:
+            for player in self.players[self.cursor :] + self.players[0 : self.cursor]:
                 if player.accepts_purchase(self.discards[-1]):
                     player.take(self.discards.pop())
                     # TODO 1: encode policy as to whether this is one card or two cards
@@ -129,7 +133,4 @@ class Trick:
         # step 4: active player either discards or melds
         move = self.active_player.action()
 
-
         # repeat until active player has no cards
-
-
