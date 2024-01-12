@@ -39,7 +39,10 @@ class Edit:
 
 class Move:
     def __init__(
-        self, meld: Optional[Meld] = None, edits: Optional[List[Edit]] = None, discard: Optional[Card] = None
+        self,
+        meld: Optional[Meld] = None,
+        edits: Optional[List[Edit]] = None,
+        discard: Optional[Card] = None,
     ) -> None:
         self.meld = meld
         self.edits = edits or []
@@ -57,16 +60,19 @@ class Move:
             yield self.discard
 
     def __repr__(self) -> str:
-        return 'Move(meld=%r, edits=[%r], discard=%r)' % (
+        return "Move(meld=%r, edits=[%r], discard=%r)" % (
             self.meld,
-            ' '.join(repr(edit) for edit in self.edits) if self.edits else '',
-            self.discard)
+            " ".join(repr(edit) for edit in self.edits) if self.edits else "",
+            self.discard,
+        )
 
     def __str__(self):
-        return 'Meld: %s / Edits: %s / Discard: %s' % (
+        return "Meld: %s / Edits: %s / Discard: %s" % (
             self.meld,
-            ' '.join(str(edit) for edit in self.edits) if self.edits else '',
-            self.discard)
+            " ".join(str(edit) for edit in self.edits) if self.edits else "",
+            self.discard,
+        )
+
 
 @dataclass
 class Action:
@@ -80,18 +86,18 @@ class Action:
 
     def __str__(self):
         if self.move is not None:
-            return 'Player %d moves %s' % (self.player_id, self.move)
+            return "Player %d moves %s" % (self.player_id, self.move)
         if self.purchase is not None:
-            return 'Player %d purchases %s' % (self.player_id, self.purchase)
+            return "Player %d purchases %s" % (self.player_id, self.purchase)
         if self.flip_discard is not None:
-            return 'Dealer flips %s' % self.flip_discard
+            return "Dealer flips %s" % self.flip_discard
         if self.draw_discard is not None:
-            return 'Player %d draws discard %s' % (self.player_id, self.draw_discard)
+            return "Player %d draws discard %s" % (self.player_id, self.draw_discard)
         if self.draw_deck:
-            return 'Player %d draws from deck' % self.player_id
+            return "Player %d draws from deck" % self.player_id
         if self.shuffle_discards:
-            return 'Dealer shuffles discards'
-        return 'Unknown action'
+            return "Dealer shuffles discards"
+        return "Unknown action"
 
 
 """
@@ -123,6 +129,7 @@ class PlayerView(Listener):
         elif action.draw_deck:
             self.unknown_count += 1
      """
+
 
 class Player(metaclass=ABCMeta):
     def __init__(self, pid: int, hand: Optional[Hand] = None) -> None:
@@ -163,38 +170,40 @@ class Player(metaclass=ABCMeta):
         pass
 
 
-def document_utility(h, objective, useful_missing_cards, useful_existing_cards, useful_card_sets, indent=4):
+def document_utility(
+    h, objective, useful_missing_cards, useful_existing_cards, useful_card_sets, indent=4
+):
     def _p(s):
-        print(' ' * indent + str(s))
+        print(" " * indent + str(s))
 
     def _pp(s):
-        print(' ' * (indent + 4) + str(s))
+        print(" " * (indent + 4) + str(s))
 
-    _p('----sets-----')
+    _p("----sets-----")
     for s in iter_sets(h):
         _pp(s)
 
-    _p('----runs-----')
+    _p("----runs-----")
     for r in iter_runs(h):
         _pp(r)
 
-    _p('----melds-----')
+    _p("----melds-----")
     for m in iter_melds(h, objective):
         _pp(m)
 
-    _p('----useful combos-----')
+    _p("----useful combos-----")
 
     for cs, count in sorted(useful_card_sets.items(), key=lambda kv: (len(kv[0]), -kv[1])):
-        _pp('%s -> %s' % (cs, count))
+        _pp("%s -> %s" % (cs, count))
 
-    _p('----useful missing cards-----')
+    _p("----useful missing cards-----")
 
     for c, usefulness in sorted(useful_missing_cards.items(), key=missing_utility):
-        _pp('%s %s' % (c, usefulness))
+        _pp("%s %s" % (c, usefulness))
 
-    _p('----useless hand cards-----')
+    _p("----useless hand cards-----")
     for c, usefulness in sorted(useful_existing_cards.items(), key=existing_utility, reverse=True):
-        _pp('%s %s' % (c, usefulness))
+        _pp("%s %s" % (c, usefulness))
 
 
 def edit_score(edits: Dict[int, MeldUpdate]) -> int:
@@ -223,7 +232,9 @@ class NaivePlayer(Player):
     def _find_useful_cards(self):
         if self._useful_missing is None:
             self._fuc_misses += 1
-            self._useful_missing, self._useful_existing, self._useful_combos = find_useful_cards(self.hand, self.objective)
+            self._useful_missing, self._useful_existing, self._useful_combos = find_useful_cards(
+                self.hand, self.objective
+            )
         else:
             self._fuc_hits += 1
         return self._useful_missing, self._useful_existing, self._useful_combos
@@ -243,11 +254,22 @@ class NaivePlayer(Player):
     def set_objective(self, objective: Objective) -> None:
         super().set_objective(objective)
         self._melds = {}
-        print('Player %d FUC %d/%d (%.1f%%) Melds %d/%d (%.1f%%)' % (
-            self.pid,
-            self._fuc_hits, self._fuc_hits + self._fuc_misses, 100 * self._fuc_hits / (self._fuc_hits + self._fuc_misses) if (self._fuc_hits + self._fuc_misses > 0) else 0.0,
-            self._meld_hits, self._meld_hits + self._meld_misses, 100 * self._meld_hits / (self._meld_hits + self._meld_misses) if (self._meld_hits + self._meld_misses > 0) else 0.0,
-        ))
+        print(
+            "Player %d FUC %d/%d (%.1f%%) Melds %d/%d (%.1f%%)"
+            % (
+                self.pid,
+                self._fuc_hits,
+                self._fuc_hits + self._fuc_misses,
+                100 * self._fuc_hits / (self._fuc_hits + self._fuc_misses)
+                if (self._fuc_hits + self._fuc_misses > 0)
+                else 0.0,
+                self._meld_hits,
+                self._meld_hits + self._meld_misses,
+                100 * self._meld_hits / (self._meld_hits + self._meld_misses)
+                if (self._meld_hits + self._meld_misses > 0)
+                else 0.0,
+            )
+        )
 
     # TODO: We should memoize the results of find_useful_cards because it's both expensive
     # and it doesn't change throughout the hand.
@@ -275,13 +297,15 @@ class NaivePlayer(Player):
     def _iter_melds(self) -> List[Meld]:
         if self.hand not in self._melds:
             self._meld_misses += 1
-            self._melds[self.hand] = sorted(iter_melds(self.hand, self.objective), key=meld_score, reverse=True)
+            self._melds[self.hand] = sorted(
+                iter_melds(self.hand, self.objective), key=meld_score, reverse=True
+            )
         else:
             self._meld_hits += 1
         return self._melds[self.hand][:]
 
     def request_move(self, melds: Dict[int, Meld]) -> Move:
-        print('Player pid: %d, hand: %s' % (self.pid, self.hand))
+        print("Player pid: %d, hand: %s" % (self.pid, self.hand))
 
         remaining_cards = Hand(self.hand)
 
@@ -293,7 +317,7 @@ class NaivePlayer(Player):
                 return Move(discard=least_useful(useful_existing))
             else:
                 for meld in my_melds:
-                    print('  - Considering meld %s (score=%s)' % (meld, meld_score(meld)))
+                    print("  - Considering meld %s (score=%s)" % (meld, meld_score(meld)))
             new_meld = melds[self.pid] = my_melds.pop(0)
             for combo in new_meld:
                 for card in combo:
@@ -308,7 +332,10 @@ class NaivePlayer(Player):
             if possible_edits:
                 best_edit = possible_edits.pop()
                 # convert Dict[int, MeldUpdate] to list of Edits
-                edits = [Edit(pid=pid, adds=edit.adds, extends=edit.extends) for pid, edit in best_edit.items()]
+                edits = [
+                    Edit(pid=pid, adds=edit.adds, extends=edit.extends)
+                    for pid, edit in best_edit.items()
+                ]
                 for edit in edits:
                     for card in edit:
                         remaining_cards.take_card(card.dematerialized())
@@ -317,12 +344,14 @@ class NaivePlayer(Player):
         # hand but against all other melds.  leave this as a TODO and just discard the most valuable card
         highest_value_card = None
         if not remaining_cards.empty:
-             highest_value_card = max(remaining_cards, key=lambda card: card.score)
+            highest_value_card = max(remaining_cards, key=lambda card: card.score)
         return Move(meld=new_meld, edits=edits, discard=highest_value_card)
 
 
 class Trick:
-    def __init__(self, objective: Objective, card_count: int, dealer_pid: int, players: Dict[int, Player]) -> None:
+    def __init__(
+        self, objective: Objective, card_count: int, dealer_pid: int, players: Dict[int, Player]
+    ) -> None:
         self.objective = objective
         self.card_count = card_count
         self.dealer_pid = dealer_pid
@@ -356,7 +385,7 @@ class Trick:
     def _process_move(self, action: Action) -> None:
         assert action.move is not None
         if action.move.meld:
-          self.__melds[action.player_id] = action.move.meld
+            self.__melds[action.player_id] = action.move.meld
         for edit in action.move.edits:
             self.__melds[edit.pid] = update_meld(self.__melds[edit.pid], edit.adds, edit.extends)
         for card in action.move:
@@ -387,15 +416,17 @@ class Trick:
         self.__discards = []
 
     def process_action(self, action: Action) -> None:
-        print('  - Processing action: %s' % action)
-        actions = sum([
-            action.move is not None,
-            action.purchase is not None,
-            action.flip_discard is not None,
-            action.draw_discard is not None,
-            action.shuffle_discards,
-            action.draw_deck,
-        ])
+        print("  - Processing action: %s" % action)
+        actions = sum(
+            [
+                action.move is not None,
+                action.purchase is not None,
+                action.flip_discard is not None,
+                action.draw_discard is not None,
+                action.shuffle_discards,
+                action.draw_deck,
+            ]
+        )
         if actions != 1:
             raise ValueError("Expected one action, got %d" % actions)
         if action.move is not None:
@@ -451,13 +482,17 @@ class Trick:
         running = True
         cursor = self.__dealer_cursor + 1
         while running:
-            print('Table melds:')
+            print("Table melds:")
             for pid, meld in self.melds.items():
-                print('   %d: %s' % (pid, meld))
+                print("   %d: %s" % (pid, meld))
             for k in range(len(self.__players)):
-                print('Player %d turn [%s]' % (
-                    cursor % len(self.__players),
-                    self.__players[cursor % len(self.__players)].hand))
+                print(
+                    "Player %d turn [%s]"
+                    % (
+                        cursor % len(self.__players),
+                        self.__players[cursor % len(self.__players)].hand,
+                    )
+                )
                 player = self.__players[cursor % len(self.__players)]
                 if player.accepts_discard(self.current_discard, self.melds):
                     action = Action(player.pid, draw_discard=True)
@@ -478,7 +513,7 @@ class Trick:
                             self.process_action(action)
                             break
                         else:
-                            print('  - Player %d declines purchase' % player.pid)
+                            print("  - Player %d declines purchase" % player.pid)
                     if not self.refresh_deck_if_necessary():
                         return self.tabulate()
                     player = self.__players[cursor % len(self.__players)]
@@ -488,7 +523,7 @@ class Trick:
                 self.process_action(Action(player.pid, move=move))
                 cursor += 1
                 if self.is_over():
-                    print('Game over!')
+                    print("Game over!")
                     running = False
                     break
         return self.tabulate()
@@ -520,14 +555,14 @@ class Game:
             now = time.time()
             for player in self.__players.values():
                 player.set_objective(objective)
-            print('========== Starting Trick %s ============' % (objective,))
+            print("========== Starting Trick %s ============" % (objective,))
             trick = Trick(objective, card_count, self.__dealer_cursor, self.__players)
             scores = trick.play()
             for pid, score in scores.items():
                 self.__player_scores[pid] += score
-            print('Current scores:')
+            print("Current scores:")
             for pid, score in self.__player_scores.items():
-                print('  Player %d: %d' % (pid, score))
+                print("  Player %d: %d" % (pid, score))
             self.__dealer_cursor += 1
             self.__dealer_cursor %= len(self.__players)
             self.__trick_stats[objective] = time.time() - now
@@ -536,11 +571,11 @@ class Game:
             # reset objective to report hit rate stats
             player.set_objective(Objective(0, 0))
 
-        print('Gameplay summary:')
+        print("Gameplay summary:")
         for pid, score in self.__player_scores.items():
-            print('   Player %d: %d' % (pid, score))
-        print('Timing summary:')
+            print("   Player %d: %d" % (pid, score))
+        print("Timing summary:")
         for objective, elapsed in self.__trick_stats.items():
-            print('   Trick %s: %0.2fs' % (objective, elapsed))
-        print('Total elapsed: %0.2fs' % sum(self.__trick_stats.values()))
+            print("   Trick %s: %0.2fs" % (objective, elapsed))
+        print("Total elapsed: %0.2fs" % sum(self.__trick_stats.values()))
         return self.__player_scores.copy()

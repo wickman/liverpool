@@ -19,9 +19,10 @@ from typing import Dict
 def iter_sets_complete(h):
     h = IndexedHand(cards=h)
     for rank, colors in enumerate(h.setdexen):
-        if rank < 2: continue
+        if rank < 2:
+            continue
         for combination in sets_from_colors(colors, h.jokers):
-          yield from materialized_sets_from_optional_colors(rank, combination)
+            yield from materialized_sets_from_optional_colors(rank, combination)
 
 
 def missing_utility(kv):
@@ -31,20 +32,20 @@ def missing_utility(kv):
 
 
 CARD_SCORES = {
-           2:  5,
-           3:  5,
-           4:  5,
-           5:  5,
-           6:  5,
-           7:  5,
-           8:  5,
-           9:  5,
-          10: 10,
-   Rank.JACK: 10,
-  Rank.QUEEN: 10,
-   Rank.KING: 10,
+    2: 5,
+    3: 5,
+    4: 5,
+    5: 5,
+    6: 5,
+    7: 5,
+    8: 5,
+    9: 5,
+    10: 10,
+    Rank.JACK: 10,
+    Rank.QUEEN: 10,
+    Rank.KING: 10,
     Rank.ACE: 15,
-        None: 15,
+    None: 15,
 }
 
 
@@ -55,7 +56,7 @@ def existing_utility(kv):
 
 
 def find_useful_cards(h: Hand, objective: Objective, max_extra_jokers=0):
-    useful_missing_cards = defaultdict(lambda: defaultdict(int)) # Card -> Distance -> Count
+    useful_missing_cards = defaultdict(lambda: defaultdict(int))  # Card -> Distance -> Count
     useful_existing_cards = {card: 0 for card in h if not card.is_joker}
     useful_card_sets = defaultdict(int)  # CardSet --> int
     h = IndexedHand(cards=h)  # make a copy
@@ -68,7 +69,7 @@ def find_useful_cards(h: Hand, objective: Objective, max_extra_jokers=0):
 
     while (not useful_missing_cards) or (jokers_beyond_utility < max_extra_jokers):
         if useful_missing_cards:
-          jokers_beyond_utility += 1
+            jokers_beyond_utility += 1
         for meld in iter_melds(h, objective, run_iterator=run_iterator, set_iterator=set_iterator):
             cs = CardSet()
             for combo in meld:

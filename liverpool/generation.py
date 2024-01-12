@@ -154,7 +154,7 @@ def ranks_from_rundex(rundex, jokers=0):
     tuple of indices into the run that are jokers.  I have no idea how to
     know how long the run is?
     """
-    #total_jokers = min(2, jokers)  # cap runs at 2 jokers
+    # total_jokers = min(2, jokers)  # cap runs at 2 jokers
     total_jokers = min(3, jokers)
     runs = []
     ranks = [rank for rank, count in enumerate(rundex) if count]
@@ -195,28 +195,6 @@ def materialized_sets_from_optional_colors(rank, colors: List[Optional[int]]) ->
         yield Set(cards)
 
 
-def iter_sets(hand):
-    if not isinstance(hand, IndexedHand):
-        hand = IndexedHand(cards=list(hand))
-    for rank, colors in enumerate(hand.setdexen):
-        if rank < 2:
-            continue
-        for combination in sets_from_colors(colors, hand.jokers):
-            # XXX We need to iterate through all combinations of materialized joker colors if
-            # we're going to use this as a "useful cards" solver.
-            yield Set.of(rank, combination)
-            #yield from materialized_sets_from_optional_colors(rank, combination)
-
-
-def iter_runs(hand):
-    if not isinstance(hand, IndexedHand):
-        hand = IndexedHand(cards=list(hand))
-    for color, rundex in hand.rundexen.copy().items():  # why is this copied?
-        for start, jokers in ranks_from_rundex(rundex, hand.jokers):
-            # print('run: %s, %s, %s' % (color, start, jokers))
-            yield Run.of(color, start, jokers)
-
-
 def take_committed(hand, combos, commit=False):
     try:
         for combo in combos:
@@ -229,42 +207,6 @@ def take_committed(hand, combos, commit=False):
     except Hand.InvalidTake:
         hand.rollback()
         return False
-
-
-def iter_melds(hand, strategy, set_iterator=iter_sets, run_iterator=iter_runs):
-    if not isinstance(hand, IndexedHand):
-        hand = IndexedHand(cards=list(hand))
-    if strategy.num_runs == 0:
-        for sets in uniq(
-            itertools.combinations_with_replacement(
-                set_iterator(hand), strategy.num_sets
-            )
-        ):
-            if take_committed(hand, sets, commit=False):
-                yield Meld(sets, None)
-    elif strategy.num_sets == 0:
-        for runs in uniq(
-            itertools.combinations_with_replacement(
-                run_iterator(hand), strategy.num_runs
-            )
-        ):
-            if take_committed(hand, runs, commit=False):
-                yield Meld(None, runs)
-    else:
-        for sets in uniq(
-            itertools.combinations_with_replacement(
-                set_iterator(hand), strategy.num_sets
-            )
-        ):
-            if take_committed(hand, sets, commit=True):
-                for runs in uniq(
-                    itertools.combinations_with_replacement(
-                        run_iterator(hand), strategy.num_runs
-                    )
-                ):
-                    if take_committed(hand, runs, commit=False):
-                        yield Meld(sets, runs)
-                hand.undo()
 
 
 _RUN_LUT = {}
@@ -298,24 +240,20 @@ def precompute_luts(max_set_jokers=_SET_LUT_MAX_JOKERS, max_run_jokers=_RUN_LUT_
 
     for total_jokers in range(max_set_jokers + 1):
         now = time.time()
-        print('Precomputing sets with %d jokers' % total_jokers, end='')
+        print("Precomputing sets with %d jokers" % total_jokers, end="")
         _SET_LUT[total_jokers] = {}
         for setdex in Setdex.iter_all():
-            _SET_LUT[total_jokers][setdex.value] = list(
-                sets_from_colors(setdex, total_jokers)
-            )
-        print('  took %0.2f seconds' % (time.time() - now))
+            _SET_LUT[total_jokers][setdex.value] = list(sets_from_colors(setdex, total_jokers))
+        print("  took %0.2f seconds" % (time.time() - now))
 
     for total_jokers in range(max_run_jokers + 1):
         now = time.time()
-        print('Precomputing runs with %d jokers...' % total_jokers, end='')
+        print("Precomputing runs with %d jokers..." % total_jokers, end="")
         _RUN_LUT[total_jokers] = {}
         for card_vector in range(2 ** (Rank.MAX - Rank.MIN + 1)):
             rundex = list(vector_to_rundex(card_vector))
-            _RUN_LUT[total_jokers][card_vector] = list(
-                ranks_from_rundex(rundex, total_jokers)
-            )
-        print('  took %0.2f seconds' % (time.time() - now))
+            _RUN_LUT[total_jokers][card_vector] = list(ranks_from_rundex(rundex, total_jokers))
+        print("  took %0.2f seconds" % (time.time() - now))
 
 
 # Consider a more compact representation, e.g. start,len,bitvector
@@ -349,6 +287,15 @@ def maybe_precompute():
             save_luts()
 
 
+def iter_runs(hand):
+    if not isinstance(hand, IndexedHand):
+        hand = IndexedHand(cards=list(hand))
+    for color, rundex in hand.rundexen.copy().items():  # why is this copied?
+        for start, jokers in ranks_from_rundex(rundex, hand.jokers):
+            # print('run: %s, %s, %s' % (color, start, jokers))
+            yield Run.of(color, start, jokers)
+
+
 def iter_runs_lut(hand):
     maybe_precompute()
     if not isinstance(hand, IndexedHand):
@@ -360,6 +307,16 @@ def iter_runs_lut(hand):
             yield Run.of(color, start, jokers)
 
 
+def iter_sets(hand):
+    if not isinstance(hand, IndexedHand):
+        hand = IndexedHand(cards=list(hand))
+    for rank, colors in enumerate(hand.setdexen):
+        if rank < 2:
+            continue
+        for combination in sets_from_colors(colors, min(_SET_LUT_MAX_JOKERS, hand.jokers)):
+            yield Set.of(rank, combination)
+
+
 def iter_sets_lut(hand):
     maybe_precompute()
     if not isinstance(hand, IndexedHand):
@@ -367,14 +324,40 @@ def iter_sets_lut(hand):
     for rank, colors in enumerate(hand.setdexen):
         if rank < 2:
             continue
-        for combination in _SET_LUT[min(_SET_LUT_MAX_JOKERS, hand.jokers)][
-            colors.value
-        ]:
-            # XXX We need to iterate through all combinations of materialized joker colors if
-            # we're going to use this as a "useful cards" solver.
+        for combination in _SET_LUT[min(_SET_LUT_MAX_JOKERS, hand.jokers)][colors.value]:
             yield Set.of(rank, combination)
-            #yield from materialized_sets_from_optional_colors(rank, combination)
+            # Change this to the following if we need colorized sets:
+            #    yield from materialized_sets_from_optional_colors(rank, combination)
+            # Otherwise Set.of will always materialize to spades which is fine unless you're
+            # leveraging iter_sets* to search for edits to existing melds.
 
+
+def iter_melds(hand, strategy, set_iterator=iter_sets, run_iterator=iter_runs):
+    if not isinstance(hand, IndexedHand):
+        hand = IndexedHand(cards=list(hand))
+    if strategy.num_runs == 0:
+        for sets in uniq(
+            itertools.combinations_with_replacement(set_iterator(hand), strategy.num_sets)
+        ):
+            if take_committed(hand, sets, commit=False):
+                yield Meld(sets, None)
+    elif strategy.num_sets == 0:
+        for runs in uniq(
+            itertools.combinations_with_replacement(run_iterator(hand), strategy.num_runs)
+        ):
+            if take_committed(hand, runs, commit=False):
+                yield Meld(None, runs)
+    else:
+        for sets in uniq(
+            itertools.combinations_with_replacement(set_iterator(hand), strategy.num_sets)
+        ):
+            if take_committed(hand, sets, commit=True):
+                for runs in uniq(
+                    itertools.combinations_with_replacement(run_iterator(hand), strategy.num_runs)
+                ):
+                    if take_committed(hand, runs, commit=False):
+                        yield Meld(sets, runs)
+                hand.undo()
 
 
 class Add(list):
@@ -388,9 +371,7 @@ def iter_adds(hand, set_):
     if not isinstance(hand, IndexedHand):
         hand = IndexedHand(cards=list(hand))
     yield Add()
-    for combination in sets_from_colors(
-        hand.setdexen[set_.rank], jokers=hand.jokers, min_size=1
-    ):
+    for combination in sets_from_colors(hand.setdexen[set_.rank], jokers=hand.jokers, min_size=1):
         yield Add(
             Card.of(set_.rank, color)
             if color is not None
@@ -483,14 +464,16 @@ def iter_extends(hand: Hand, run: Run, run_iterator=iter_runs):
 
 
 # This is ugly af
-def update_meld(meld: Meld, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None) -> Meld:
+def update_meld(
+    meld: Meld, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None
+) -> Meld:
     adds = adds or {}
     extends = extends or {}
     meld_sets = {set_id: set_ for set_id, set_ in enumerate(meld.sets)}
     meld_runs = {run_id: run for run_id, run in enumerate(meld.runs)}
     for add_id, add in adds.items():
         for card in add:
-          meld_sets[add_id] = meld_sets[add_id].extend(card)
+            meld_sets[add_id] = meld_sets[add_id].extend(card)
     for extend_id, extend in extends.items():
         assert extend.run == meld_runs[extend_id]
         meld_runs[extend_id] = Run(extend.left + list(extend.run) + extend.right)
@@ -498,7 +481,9 @@ def update_meld(meld: Meld, adds: Optional[Dict[int, Add]] = None, extends: Opti
 
 
 class MeldUpdate(list):
-    def __init__(self, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None) -> None:
+    def __init__(
+        self, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None
+    ) -> None:
         self.adds = adds or {}
         self.extends = extends or {}
 
@@ -516,24 +501,37 @@ def iter_updates(hand, meld, run_iterator=iter_runs) -> Iterable[MeldUpdate]:
             combos_only = [combo for combo_id, combo in combination]
             if take_committed(hand, combos_only, commit=False):
                 yield MeldUpdate(
-                    adds={combo_id: combo for combo_id, combo in combination if isinstance(combo, Add)},
-                    extends={combo_id: combo for combo_id, combo in combination if isinstance(combo, Extend)})
+                    adds={
+                        combo_id: combo for combo_id, combo in combination if isinstance(combo, Add)
+                    },
+                    extends={
+                        combo_id: combo
+                        for combo_id, combo in combination
+                        if isinstance(combo, Extend)
+                    },
+                )
 
 
-def iter_updates_multi(hand, melds: Dict[int, Meld], run_iterator=iter_runs) -> Iterable[Dict[int, MeldUpdate]]:
+def iter_updates_multi(
+    hand, melds: Dict[int, Meld], run_iterator=iter_runs
+) -> Iterable[Dict[int, MeldUpdate]]:
     adds = []
     extends = []
     for pid, meld in melds.items():
         for set_id, set_ in enumerate(meld.sets):
             adds.extend((pid, set_id, add_) for add_ in iter_adds(hand, set_) if len(add_) > 0)
         for run_id, run in enumerate(meld.runs):
-            extends.extend((pid, run_id, extend) for extend in iter_extends(hand, run, run_iterator) if len(extend) > 0)
+            extends.extend(
+                (pid, run_id, extend)
+                for extend in iter_extends(hand, run, run_iterator)
+                if len(extend) > 0
+            )
 
     mutations = adds + extends
 
     print("mutation candidates (iter_updates_multi):")
     for pid, mid, mutation in mutations:
-        print('   - %d -> %d += %s' % (pid, mid, mutation))
+        print("   - %d -> %d += %s" % (pid, mid, mutation))
     for size in range(len(mutations) + 1):
         for combination in itertools.combinations(mutations, size):
             combos_only = [combo for pid, combo_id, combo in combination]
@@ -541,11 +539,21 @@ def iter_updates_multi(hand, melds: Dict[int, Meld], run_iterator=iter_runs) -> 
                 updates = defaultdict(dict)
                 for pid, combo_id, combo in combination:
                     updates[pid][combo_id] = combo
-                yield {pid: MeldUpdate(
-                          adds={combo_id: combo for combo_id, combo in combos.items() if isinstance(combo, Add)},
-                          extends={combo_id: combo for combo_id, combo in combos.items() if isinstance(combo, Extend)})
-                      for pid, combos in updates.items()}
-
+                yield {
+                    pid: MeldUpdate(
+                        adds={
+                            combo_id: combo
+                            for combo_id, combo in combos.items()
+                            if isinstance(combo, Add)
+                        },
+                        extends={
+                            combo_id: combo
+                            for combo_id, combo in combos.items()
+                            if isinstance(combo, Extend)
+                        },
+                    )
+                    for pid, combos in updates.items()
+                }
 
 
 """

@@ -202,12 +202,12 @@ class Card:
         return (self.value & ~self._JOKER_MASK) != 0
 
     @property
-    def color(self) -> int:
+    def color(self) -> Optional[int]:
         masked_value = self.value & ~self._JOKER_MASK
         return None if masked_value == 0 else masked_value // (Rank.MAX + 1)
 
     @property
-    def rank(self) -> int:
+    def rank(self) -> Optional[int]:
         masked_value = self.value & ~self._JOKER_MASK
         return None if masked_value == 0 else masked_value % (Rank.MAX + 1)
 
@@ -291,21 +291,16 @@ class Run:
             )
         if len(jokers) < cls.MIN:
             raise TypeError(
-                "Expected length to be an integer >= %d, got %s"
-                % (cls.MIN, len(jokers))
+                "Expected length to be an integer >= %d, got %s" % (cls.MIN, len(jokers))
             )
-        cards = [
-            Card.of(start + offset, color, joker) for offset, joker in enumerate(jokers)
-        ]
+        cards = [Card.of(start + offset, color, joker) for offset, joker in enumerate(jokers)]
         return cls(cards)
 
     def __init__(self, cards: Iterable[Card]) -> None:
         if not isinstance(cards, (tuple, list)):
             raise TypeError("Expected cards to be a tuple/list of cards.")
         if len(cards) < self.MIN:
-            raise ValueError(
-                "Expected at least %d cards, got %d" % (self.MIN, len(cards))
-            )
+            raise ValueError("Expected at least %d cards, got %d" % (self.MIN, len(cards)))
         if not all(isinstance(card, Card) for card in cards):
             raise TypeError("Expected cards to be a tuple/list of cards.")
         if not all(card.color == cards[0].color for card in cards):
@@ -329,11 +324,7 @@ class Run:
 
     @property
     def next_left(self) -> Optional[Card]:
-        return (
-            Card.of(self.left.rank - 1, self.left.color)
-            if self.left.rank > Rank.MIN
-            else None
-        )
+        return Card.of(self.left.rank - 1, self.left.color) if self.left.rank > Rank.MIN else None
 
     @property
     def right(self) -> Card:
@@ -342,9 +333,7 @@ class Run:
     @property
     def next_right(self) -> Optional[Card]:
         return (
-            Card.of(self.right.rank + 1, self.right.color)
-            if self.right.rank < Rank.MAX
-            else None
+            Card.of(self.right.rank + 1, self.right.color) if self.right.rank < Rank.MAX else None
         )
 
     def extend(self, card: Card) -> "Run":
@@ -362,9 +351,15 @@ class Run:
         return self.length
 
     def __hash__(self):
-        return hash(
-            b"run" + b"".join(card.value.to_bytes(1, "big") for card in self.cards)
-        )
+        return hash(b"run" + b"".join(card.value.to_bytes(1, "big") for card in self.cards))
+
+    def _as_tuple(self):
+        return self.cards
+
+    def __lt__(self, other):
+        if not isinstance(other, Run):
+            raise TypeError("Expected other to be a Run, got %s" % type(other))
+        return self._as_tuple() < other._as_tuple()
 
     def __eq__(self, other):
         if not isinstance(other, Run):
@@ -379,8 +374,8 @@ class Run:
     def iter_left(self) -> Iterable[Card]:
         """Iterate, descending, over the cards to the left of the run."""
         if self.next_left:
-          for rank in range(self.next_left.rank, Rank.MIN - 1, -1):
-              yield Card.of(rank, self.color)
+            for rank in range(self.next_left.rank, Rank.MIN - 1, -1):
+                yield Card.of(rank, self.color)
 
     def iter_right(self) -> Iterable[Card]:
         """Iterate, ascending, over the cards to the right of the run."""
@@ -398,7 +393,7 @@ class Run:
         )
 
 
-class Set(object):
+class Set:
     __slots__ = ("cards",)
 
     class Error(Exception):
@@ -420,9 +415,7 @@ class Set(object):
             raise TypeError("Expected colors to be a tuple/list of integers.")
         # it is policy for the sake of sets to materialize jokers as a consistent color every time
         cards = [
-            Card.of(rank, color)
-            if color is not None
-            else Card.of(rank, Color.SPADE, joker=True)
+            Card.of(rank, color) if color is not None else Card.of(rank, Color.SPADE, joker=True)
             for color in colors
         ]
         return cls(cards)
@@ -433,9 +426,7 @@ class Set(object):
         if not all(isinstance(card, Card) for card in cards):
             raise TypeError("Expected cards to be a tuple/list of cards.")
         if len(cards) < self.MIN:
-            raise ValueError(
-                "Expected at least %d cards, got %d" % (self.MIN, len(cards))
-            )
+            raise ValueError("Expected at least %d cards, got %d" % (self.MIN, len(cards)))
         if not all(card.rank == cards[0].rank for card in cards):
             raise ValueError("Expected all cards to be the same rank.")
         self.cards = tuple(sorted(cards))
@@ -462,9 +453,7 @@ class Set(object):
         return self.cards
 
     def __hash__(self):
-        return hash(
-            b"set" + b"".join(card.value.to_bytes(1, "big") for card in self.cards)
-        )
+        return hash(b"set" + b"".join(card.value.to_bytes(1, "big") for card in self.cards))
 
     def __lt__(self, other):
         if not isinstance(other, Set):
@@ -492,7 +481,7 @@ class CardSet(list):
         return hash(b"".join(card.value.to_bytes(1, "big") for card in self))
 
     def __str__(self):
-        return ' '.join(str(card) for card in self)
+        return " ".join(str(card) for card in self)
 
 
 class Objective(object):
@@ -505,7 +494,7 @@ class Objective(object):
         self.num_runs = num_runs
 
     def __str__(self):
-        return '%d sets / %d runs' % (self.num_sets, self.num_runs)
+        return "%d sets / %d runs" % (self.num_sets, self.num_runs)
 
 
 class Meld:
@@ -536,14 +525,10 @@ class Meld:
         return self._as_tuple() == other._as_tuple()
 
     def __len__(self):
-        return sum(len(list(s)) for s in self.sets) + sum(
-            len(list(r)) for r in self.runs
-        )
+        return sum(len(list(s)) for s in self.sets) + sum(len(list(r)) for r in self.runs)
 
     def __str__(self):
-        return "Meld(%s)" % "   ".join(
-            "%s" % combo for combo in (self.sets + self.runs)
-        )
+        return "Meld(%s)" % "   ".join("%s" % combo for combo in (self.sets + self.runs))
 
 
 class Deck:

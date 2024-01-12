@@ -37,10 +37,7 @@ class Trick(object):
                         other_player.apply_take(PlayerTake(player.pid, None, 1))
 
     def order(self, turn):
-        return [
-            self.players[(turn + k) % len(self.players)]
-            for k in range(len(self.players))
-        ]
+        return [self.players[(turn + k) % len(self.players)] for k in range(len(self.players))]
 
     def negotiate(self, turn):
         takes = []

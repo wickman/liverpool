@@ -89,10 +89,10 @@ class Hand:
             raise TypeError("Expected card to be Card, got %s" % type(card))
 
         try:
-          if self.cards[card.value] <= 0:
-              raise self.InvalidTake("You do not have a %s!" % card)
+            if self.cards[card.value] <= 0:
+                raise self.InvalidTake("You do not have a %s!" % card)
         except IndexError:
-            print('card.value %d' % card.value)
+            print("card.value %d" % card.value)
             raise
 
         self.cards[card.value] -= 1
