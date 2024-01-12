@@ -42,7 +42,7 @@ class Hand:
                 raise cls.Error("Insufficient cards in deck")
         return cls(cards)
 
-    def __init__(self, cards=None) -> None:
+    def __init__(self, cards: Iterable[Card] = None) -> None:
         self.cards: array[int] = array("B", [0] * (Card.JOKER_VALUE + 1))
         # stack of takes, None represents start of a "transaction"
         self.taken: List[Optional[Card]] = []
@@ -57,6 +57,9 @@ class Hand:
     @property
     def empty(self) -> bool:
         return sum(self.cards) == 0
+
+    def __len__(self) -> int:
+        return sum(self.cards)
 
     def __iter__(self) -> Iterable[Card]:
         for card_value, count in enumerate(self.cards):
@@ -82,8 +85,12 @@ class Hand:
         if not isinstance(card, Card):
             raise TypeError("Expected card to be Card, got %s" % type(card))
 
-        if self.cards[card.value] <= 0:
-            raise self.InvalidTake("You do not have a %s!" % card)
+        try:
+          if self.cards[card.value] <= 0:
+              raise self.InvalidTake("You do not have a %s!" % card)
+        except IndexError:
+            print('card.value %d' % card.value)
+            raise
 
         self.cards[card.value] -= 1
         self.taken.append(card)

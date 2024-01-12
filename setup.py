@@ -24,7 +24,12 @@ setup(
     author='Brian Wickman',
     author_email='wickman@gmail.com',
     license='MIT',
-    packages=['liverpool'],
+    packages=['liverpool', 'liverpool.bin'],
     zip_safe=True,
     cmdclass={'unittest': RunTests},
+    entry_points = {
+        'console_scripts': [
+            'liverpool = liverpool.bin.play:main'
+        ]
+    }
 )

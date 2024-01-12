@@ -13,13 +13,14 @@ Some new concepts:
 
 """
 
+from collections import defaultdict
 import contextlib
 import itertools
 import gzip
 import json
 import os
 
-from typing import Iterable, Optional, List
+from typing import Iterable, Optional, List, Dict
 
 from .combinatorics import (
     sort_uniq,
@@ -152,7 +153,8 @@ def ranks_from_rundex(rundex, jokers=0):
     tuple of indices into the run that are jokers.  I have no idea how to
     know how long the run is?
     """
-    total_jokers = min(2, jokers)  # cap runs at 2 jokers
+    #total_jokers = min(2, jokers)  # cap runs at 2 jokers
+    total_jokers = min(3, jokers)
     runs = []
     ranks = [rank for rank, count in enumerate(rundex) if count]
     for num_jokers in range(total_jokers + 1):
@@ -183,6 +185,15 @@ def sets_from_colors(colors, jokers=0, min_size=Set.MIN):
     return sort_uniq(iterator(), key=orderable_colors_with_none)
 
 
+def materialized_sets_from_optional_colors(rank, colors: List[Optional[int]]) -> Iterable[Set]:
+    jokers = colors.count(None)
+    non_jokers = [color for color in colors if color is not None]
+    for joker_colors in itertools.combinations(range(Color.MAX + 1), jokers):
+        cards = [Card.of(rank, color, joker=True) for color in joker_colors]
+        cards.extend(Card.of(rank, color) for color in non_jokers)
+        yield Set(cards)
+
+
 def iter_sets(hand):
     if not isinstance(hand, IndexedHand):
         hand = IndexedHand(cards=list(hand))
@@ -190,7 +201,10 @@ def iter_sets(hand):
         if rank < 2:
             continue
         for combination in sets_from_colors(colors, hand.jokers):
+            # XXX We need to iterate through all combinations of materialized joker colors if
+            # we're going to use this as a "useful cards" solver.
             yield Set.of(rank, combination)
+            #yield from materialized_sets_from_optional_colors(rank, combination)
 
 
 def iter_runs(hand):
@@ -349,11 +363,15 @@ def iter_sets_lut(hand):
         for combination in _SET_LUT[min(_SET_LUT_MAX_JOKERS, hand.jokers)][
             colors.value
         ]:
+            # XXX We need to iterate through all combinations of materialized joker colors if
+            # we're going to use this as a "useful cards" solver.
             yield Set.of(rank, combination)
+            #yield from materialized_sets_from_optional_colors(rank, combination)
+
 
 
 class Add(list):
-    """A list of cards that can be added to a hand."""
+    """A list of cards that can be added to a set."""
 
     def __str__(self):
         return " ".join("%s" % card for card in self)
@@ -389,6 +407,9 @@ class Extend:
         self.left: List[Card] = left if left is not None else []
         self.right: List[Card] = right if right is not None else []
 
+    def __len__(self):
+        return len(self.left) + len(self.right)
+
     def __iter__(self):
         return iter(self.left + self.right)
 
@@ -399,6 +420,9 @@ class Extend:
         if self.right:
             run_str += "++" + " ".join("%s" % card for card in self.right)
         return run_str
+
+    def __repr__(self):
+        return "Extend(%r, %r, %r)" % (self.run, self.left, self.right)
 
 
 def extend_from(run1: Run, run2: Run) -> Extend:
@@ -418,6 +442,7 @@ def extend_from(run1: Run, run2: Run) -> Extend:
     )
 
     if other_cards_overlap != my_cards:
+        # I suspect this will raise
         raise ValueError("Runs must overlap.")
 
     if not left and not right:
@@ -430,35 +455,90 @@ def iter_extends(hand: Hand, run: Run, run_iterator=iter_runs):
     if not isinstance(hand, IndexedHand):
         hand = IndexedHand(cards=list(hand))
 
+    # get hand containing just the cards that are the same color as the run
     new_hand = IndexedHand(cards=hand.iter_color(run.color))
+    # add the run cards to the hand
     for card in run:
-        new_hand.put_card(card)
+        new_hand.put_card(card.dematerialized())
+    # add jokers to the hand
     for _ in range(hand.jokers):
         new_hand.put_card(Card.joker())
 
     yield Extend(run)
 
+    # generate all possible runs that can be generated from the hand
     for extended_run in run_iterator(new_hand):
         try:
+            # generate Extends from the run and the extended run
             yield extend_from(run, extended_run)
         except ValueError:
             continue
 
 
-def iter_updates(hand, meld, run_iterator=iter_runs):
-    combos = []
-    for combo in meld:
-        if isinstance(combo, Set):
-            combos.append(list(iter_adds(hand, combo)))
-        elif isinstance(combo, Run):
-            combos.append(list(iter_extends(hand, combo, run_iterator)))
-        else:
-            raise TypeError("Invalid Meld combo: %s" % type(combo))
-    for k, combo in enumerate(combos):
-        print("%d: %s" % (k, combo))
-    for combination in itertools.product(*combos):
-        if take_committed(hand, combination, commit=False):
-            yield MeldUpdate(combination)
+# This is ugly af
+def update_meld(meld: Meld, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None) -> Meld:
+    adds = adds or {}
+    extends = extends or {}
+    meld_sets = {set_id: set_ for set_id, set_ in enumerate(meld.sets)}
+    meld_runs = {run_id: run for run_id, run in enumerate(meld.runs)}
+    for add_id, add in adds.items():
+        for card in add:
+          meld_sets[add_id] = meld_sets[add_id].extend(card)
+    for extend_id, extend in extends.items():
+        assert extend.run == meld_runs[extend_id]
+        meld_runs[extend_id] = Run(extend.left + list(extend.run) + extend.right)
+    return Meld(list(meld_sets.values()), list(meld_runs.values()))
+
+
+class MeldUpdate(list):
+    def __init__(self, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None) -> None:
+        self.adds = adds or {}
+        self.extends = extends or {}
+
+
+def iter_updates(hand, meld, run_iterator=iter_runs) -> Iterable[MeldUpdate]:
+    adds = {}
+    extends = {}
+    for set_id, set_ in enumerate(meld.sets):
+        adds[set_id] = list(iter_adds(hand, set_))
+    for run_id, run in enumerate(meld.runs):
+        extends[run_id] = list(iter_extends(hand, run, run_iterator))
+    mutations = list(adds.items()) + list(extends.items())
+    for size in range(len(mutations) + 1):
+        for combination in itertools.combinations(mutations, size):
+            combos_only = [combo for combo_id, combo in combination]
+            if take_committed(hand, combos_only, commit=False):
+                yield MeldUpdate(
+                    adds={combo_id: combo for combo_id, combo in combination if isinstance(combo, Add)},
+                    extends={combo_id: combo for combo_id, combo in combination if isinstance(combo, Extend)})
+
+
+def iter_updates_multi(hand, melds: Dict[int, Meld], run_iterator=iter_runs) -> Iterable[Dict[int, MeldUpdate]]:
+    adds = []
+    extends = []
+    for pid, meld in melds.items():
+        for set_id, set_ in enumerate(meld.sets):
+            adds.extend((pid, set_id, add_) for add_ in iter_adds(hand, set_) if len(add_) > 0)
+        for run_id, run in enumerate(meld.runs):
+            extends.extend((pid, run_id, extend) for extend in iter_extends(hand, run, run_iterator) if len(extend) > 0)
+
+    mutations = adds + extends
+
+    print("mutation candidates (iter_updates_multi):")
+    for pid, mid, mutation in mutations:
+        print('   - %d -> %d += %s' % (pid, mid, mutation))
+    for size in range(len(mutations) + 1):
+        for combination in itertools.combinations(mutations, size):
+            combos_only = [combo for pid, combo_id, combo in combination]
+            if take_committed(hand, combos_only, commit=False):
+                updates = defaultdict(dict)
+                for pid, combo_id, combo in combination:
+                    updates[pid][combo_id] = combo
+                yield {pid: MeldUpdate(
+                          adds={combo_id: combo for combo_id, combo in combos.items() if isinstance(combo, Add)},
+                          extends={combo_id: combo for combo_id, combo in combos.items() if isinstance(combo, Extend)})
+                      for pid, combos in updates.items()}
+
 
 
 """

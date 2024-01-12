@@ -146,6 +146,22 @@ We should reimplement Set so that it's a Set of Cards with materialized jokers.
 class Card:
     """A card in the game of Liverpool."""
 
+    SCORES = {
+        2: 5,
+        3: 5,
+        4: 5,
+        5: 5,
+        6: 5,
+        7: 5,
+        8: 5,
+        9: 5,
+        10: 10,
+        Rank.JACK: 10,
+        Rank.QUEEN: 10,
+        Rank.KING: 10,
+        Rank.ACE: 15,
+    }
+
     __slots__ = ("value",)
 
     MIN = Rank.MIN + Color.MIN * (Rank.MAX + 1)
@@ -174,6 +190,10 @@ class Card:
             raise ValueError("Invalid card value: %s" % value)
 
     @property
+    def score(self) -> int:
+        return 15 if self.is_joker else self.SCORES[self.rank]
+
+    @property
     def is_joker(self) -> bool:
         return (self.value & self._JOKER_MASK) != 0
 
@@ -192,15 +212,23 @@ class Card:
         return None if masked_value == 0 else masked_value % (Rank.MAX + 1)
 
     def as_common(self) -> "Card":
-        # return the card as a non-joker variant
+        """Return a de-jokerified version of this card.
+
+        If called with an unmaterialized Joker, will return a rank/color validation error.
+        """
         return Card.of(self.rank, self.color)
 
     def materialize(self, rank: int, color: int = 0) -> "Card":
+        """Pin a joker to a specific rank and color."""
         if not self.is_joker:
             raise ValueError("Cannot materialize a non-joker card.")
         return Card.of(rank, color, joker=True)
 
     def dematerialized(self) -> "Card":
+        """Return a version of this card without any materialization.
+
+        If called with a materialized Joker, the materialization will be stripped. If
+        called with any other card, the card itself will be returned unchanged."""
         if self.is_joker:
             return Card.joker()
         else:
@@ -350,13 +378,15 @@ class Run:
 
     def iter_left(self) -> Iterable[Card]:
         """Iterate, descending, over the cards to the left of the run."""
-        for rank in range(self.next_left.rank, Rank.MIN - 1, -1):
-            yield Card.of(rank, self.color)
+        if self.next_left:
+          for rank in range(self.next_left.rank, Rank.MIN - 1, -1):
+              yield Card.of(rank, self.color)
 
     def iter_right(self) -> Iterable[Card]:
         """Iterate, ascending, over the cards to the right of the run."""
-        for rank in range(self.next_right.rank, Rank.MAX + 1):
-            yield Card.of(rank, self.color)
+        if self.next_right:
+            for rank in range(self.next_right.rank, Rank.MAX + 1):
+                yield Card.of(rank, self.color)
 
     def __str__(self):
         return " ".join("%s" % card for card in self)
@@ -457,6 +487,14 @@ class Set(object):
         return "%s((%s))" % (self.__class__.__name__, ", ".join(map(repr, self)))
 
 
+class CardSet(list):
+    def __hash__(self):
+        return hash(b"".join(card.value.to_bytes(1, "big") for card in self))
+
+    def __str__(self):
+        return ' '.join(str(card) for card in self)
+
+
 class Objective(object):
     def __init__(self, num_sets, num_runs):
         if not isinstance(num_sets, int) or num_sets < 0:
@@ -466,20 +504,8 @@ class Objective(object):
         self.num_sets = num_sets
         self.num_runs = num_runs
 
-
-@dataclass
-class MeldEdit:
-    """An edit to a meld.
-
-    Runs can be edited by adding or removing cards from the left or right.
-    Sets can be edited by adding or removing cards of the same Rank.
-
-    Run.extend(card, as_joker=False)
-    Set.extend(card)
-    """
-
-    run_edits: List[Tuple[int, List[Card]]]
-    set_edits: List[Tuple[int, List[Card]]]
+    def __str__(self):
+        return '%d sets / %d runs' % (self.num_sets, self.num_runs)
 
 
 class Meld:
@@ -503,16 +529,6 @@ class Meld:
 
     def enumerate(self):
         return enumerate(self)
-
-    """
-  def extend(self, edit: MeldEdit) -> "Meld":
-    sets = self.sets[:]
-    runs = self.runs[:]
-    for index, cards in edit.set_edits:
-      for card in cards:
-        sets[index] = sets[index].extend(card)
-    for index, cards in edit.run_edits:
-  """
 
     def __eq__(self, other):
         if not isinstance(other, Meld):

@@ -10,7 +10,7 @@ from liverpool.generation import (
     iter_sets_lut,
     iter_runs,
     iter_sets,
-    load_luts,
+    maybe_precompute,
 )
 
 
@@ -64,7 +64,7 @@ if len(sys.argv) == 2:
 
 
 # preload
-load_luts()
+maybe_precompute()
 
 print('Without LUTS')
 simulate(num_sets=2, num_runs=0, dealt_cards=10)
