@@ -215,18 +215,49 @@ def meld_score(meld: Meld) -> int:
 class NaivePlayer(Player):
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
+        self._useful_missing = self._useful_existing = self._useful_combos = None
+        self._melds = {}
+        self._meld_hits, self._meld_misses = 0, 0
+        self._fuc_hits, self._fuc_misses = 0, 0
+
+    def _find_useful_cards(self):
+        if self._useful_missing is None:
+            self._fuc_misses += 1
+            self._useful_missing, self._useful_existing, self._useful_combos = find_useful_cards(self.hand, self.objective)
+        else:
+            self._fuc_hits += 1
+        return self._useful_missing, self._useful_existing, self._useful_combos
+
+    def take(self, card: Card) -> None:
+        super().take(card)
+        self._useful_missing, self._useful_existing, self._useful_combos = None, None, None
+
+    def discard(self, card: Card) -> None:
+        super().discard(card)
+        self._useful_missing, self._useful_existing, self._useful_combos = None, None, None
 
     def publish_action(self, action: Action, melds: Dict[int, Meld]) -> None:
         # ignore published actions
         pass
 
+    def set_objective(self, objective: Objective) -> None:
+        super().set_objective(objective)
+        self._melds = {}
+        print('Player %d FUC %d/%d (%.1f%%) Melds %d/%d (%.1f%%)' % (
+            self.pid,
+            self._fuc_hits, self._fuc_hits + self._fuc_misses, 100 * self._fuc_hits / (self._fuc_hits + self._fuc_misses) if (self._fuc_hits + self._fuc_misses > 0) else 0.0,
+            self._meld_hits, self._meld_hits + self._meld_misses, 100 * self._meld_hits / (self._meld_hits + self._meld_misses) if (self._meld_hits + self._meld_misses > 0) else 0.0,
+        ))
+
+    # TODO: We should memoize the results of find_useful_cards because it's both expensive
+    # and it doesn't change throughout the hand.
     def accepts_discard(self, card: Card, melds: Dict[int, Meld]) -> bool:
         # if not melded, check for useful_missing
         # if melded, check to see if we can extend any melds
 
         if self.pid in melds:
             return False
-        useful_missing, useful_existing, useful_combos = find_useful_cards(self.hand, self.objective)
+        useful_missing, _, _ = self._find_useful_cards()
         if card in useful_missing:
             return True
         return False
@@ -236,10 +267,18 @@ class NaivePlayer(Player):
         # if melded, decline unless it reduces our deadwood?
         if self.pid in melds:
             return False
-        useful_missing, useful_existing, useful_combos = find_useful_cards(self.hand, self.objective)
+        useful_missing, _, _ = self._find_useful_cards()
         if card in useful_missing:
             return True
         return False
+
+    def _iter_melds(self) -> List[Meld]:
+        if self.hand not in self._melds:
+            self._meld_misses += 1
+            self._melds[self.hand] = sorted(iter_melds(self.hand, self.objective), key=meld_score, reverse=True)
+        else:
+            self._meld_hits += 1
+        return self._melds[self.hand][:]
 
     def request_move(self, melds: Dict[int, Meld]) -> Move:
         print('Player pid: %d, hand: %s' % (self.pid, self.hand))
@@ -248,10 +287,9 @@ class NaivePlayer(Player):
 
         my_meld = new_meld = None
         if self.pid not in melds:
-            my_melds = sorted(iter_melds(self.hand, self.objective), key=meld_score, reverse=True)
+            my_melds = self._iter_melds()
             if len(my_melds) == 0:
-                _, useful_existing, _ = find_useful_cards(remaining_cards, self.objective)
-                # document_utility(remaining_cards, self.objective, useful_missing, useful_existing, useful_combos)
+                _, useful_existing, _ = self._find_useful_cards()
                 return Move(discard=least_useful(useful_existing))
             else:
                 for meld in my_melds:
@@ -494,6 +532,10 @@ class Game:
             self.__dealer_cursor %= len(self.__players)
             self.__trick_stats[objective] = time.time() - now
 
+        for player in self.__players.values():
+            # reset objective to report hit rate stats
+            player.set_objective(Objective(0, 0))
+
         print('Gameplay summary:')
         for pid, score in self.__player_scores.items():
             print('   Player %d: %d' % (pid, score))
@@ -502,101 +544,3 @@ class Game:
             print('   Trick %s: %0.2fs' % (objective, elapsed))
         print('Total elapsed: %0.2fs' % sum(self.__trick_stats.values()))
         return self.__player_scores.copy()
-
-
-"""
-General flow should be the following:
-
-
-   ts = TableState() --> deck / discards
-   ps = PlayerState(ts, num_players=4) --> melds
-   #  player = [Player(k, ps, ts) for k in range(num_players)]
-   #  ps.num_players
-   #  ps.melds[pid] -> Meld
-
-   game = Game(gs, players)
-
-   game.run:
-     for objective, card_count in game.TRICKS:
-        trick = Trick(objective, card_count, ps, ts)
-        trick.play()
-
-   # generate dealing actions -- which should just be Action(player_id, draw_deck=True) until
-   each player has the appropriate number of cards.
-
-   generate Action(0, flip_discard=deck.pop()) to start the game
-   gs.process_action(action) # broadcast
-   cursor = 0
-
-   while not gs.is_over():
-      cursor += 1
-      cursor %= num_players
-      if not player[cursor].accepts_discard(gs.current_discard):
-        for k in range(cursor + 1, cursor + num_players + 1):
-          action = players[k % num_players].accepts_purchase()
-          if action is not None:
-            gs.process_action(action) # broadcasts to everyone
-            break
-      else:
-        if self.deck_size == 0:
-            if self.discard_size == 0:
-                return
-            action = Action(Game.GAME_PID, shuffle_discards=True)
-            gs.process_action(action)
-        action = Action(cursor, draw_deck=True)
-        gs.process_action(action)
-        action = players[cursor].action()
-        gs.process_action(action)
-
-    gs.tabulate()
-
-
-
-Mechanically what is happening inside of the Player class?
-
-In the absence of an external action, it's going to be looking at the following:
-  * If not in a melded state, going to be looking how to reach a melded state.
-    How to accomplish this?  We could iterate through all possible unseen cards
-    and determine if we can reach a melded state with one card, two cards, and so forth.
-
-    One way to do this is to keep appending jokers and see how they materialize to see
-    what produces melded states.
-
-What is the minimal implementation of self-play?
-
-1. Only do a single objective, e.g. 1 run 1 set.
-2. Deal 10 cards to each player.
-3. Implement the following functions:
-    * find_useful_cards(h, objective) ->
-        Add jokers until we've found a meld, tally up the materializations to understand the nature
-        of which cards would be useful to have.
-    * find_useless_cards(h, objective)
-        Tally up existing (non-joker) cards that are in each combo to determine which cards are
-        seen the least if at all.  We should be able to make a distribution for every card in our
-        hand and determine which cards are the least useful.
-4. For each turn, if top of discard pile is in the top N useful cards, take it, otherwise defer
-   to the rest of the players until you can draw from the deck.
-5. If you can meld, immediately do so.
-6. If you can extend, immediately do so, which needs the following function:
-     * iter_edits(hand, meld)
-     We need to iterate over iter_edits for every possible meld and then determine which edits
-     minimize deadwood.  (Or we could just greedily pick edits until we can't anymore.)
-7. Discard most useless cards (this has to be now based upon edits, not just cards in hand/objective.)
-8. Repeat until someone goes out.
-
-So the player needs access to the following:
-   * All other player melds
-   the rest can be provided by the game during invocation by:
-      .accepts_discard(card, player_views: pid->Meld) (top of discard pile)
-      .accepts_purchase(card, player_views: pid->Meld) (top of discard pile)
-      .put_card(card, player_views: pid->Meld) (draw from deck)
-   Alternately we can provide all other melds by simply providing an array of PlayerViews to the
-      .request_move() function.
-   Then we can also do the broadcast_action() after every action.
-
-and a way to publish the following actions:
-   * Move
-   * Purchase
-   * Draw deck
-
-"""

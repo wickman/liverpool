@@ -58,6 +58,9 @@ class Hand:
     def empty(self) -> bool:
         return sum(self.cards) == 0
 
+    def __hash__(self) -> int:
+        return hash(tuple(self.cards))
+
     def __len__(self) -> int:
         return sum(self.cards)
 

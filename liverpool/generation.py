@@ -19,6 +19,7 @@ import itertools
 import gzip
 import json
 import os
+import time
 
 from typing import Iterable, Optional, List, Dict
 
@@ -268,7 +269,7 @@ def iter_melds(hand, strategy, set_iterator=iter_sets, run_iterator=iter_runs):
 
 _RUN_LUT = {}
 _RUN_LUT_FILE = os.path.expanduser("~/.liverpool_runs")
-_RUN_LUT_MAX_JOKERS = 2
+_RUN_LUT_MAX_JOKERS = 3
 
 
 _SET_LUT = {}
@@ -292,23 +293,29 @@ def vector_to_rundex(vector):
             yield 1 if vector & (1 << (k - Rank.MIN)) else 0
 
 
-def precompute_luts():
+def precompute_luts(max_set_jokers=_SET_LUT_MAX_JOKERS, max_run_jokers=_RUN_LUT_MAX_JOKERS):
     print("Precomputing LUTS. This will take a while...")
 
-    for total_jokers in range(_SET_LUT_MAX_JOKERS + 1):
+    for total_jokers in range(max_set_jokers + 1):
+        now = time.time()
+        print('Precomputing sets with %d jokers' % total_jokers, end='')
         _SET_LUT[total_jokers] = {}
         for setdex in Setdex.iter_all():
             _SET_LUT[total_jokers][setdex.value] = list(
                 sets_from_colors(setdex, total_jokers)
             )
+        print('  took %0.2f seconds' % (time.time() - now))
 
-    for total_jokers in range(_RUN_LUT_MAX_JOKERS + 1):
+    for total_jokers in range(max_run_jokers + 1):
+        now = time.time()
+        print('Precomputing runs with %d jokers...' % total_jokers, end='')
         _RUN_LUT[total_jokers] = {}
         for card_vector in range(2 ** (Rank.MAX - Rank.MIN + 1)):
             rundex = list(vector_to_rundex(card_vector))
             _RUN_LUT[total_jokers][card_vector] = list(
                 ranks_from_rundex(rundex, total_jokers)
             )
+        print('  took %0.2f seconds' % (time.time() - now))
 
 
 # Consider a more compact representation, e.g. start,len,bitvector

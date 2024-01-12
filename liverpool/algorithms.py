@@ -7,6 +7,9 @@ from .generation import (
     materialized_sets_from_optional_colors,
     iter_melds,
     iter_sets,
+    iter_sets_lut,
+    iter_runs,
+    iter_runs_lut,
     IndexedHand,
 )
 
@@ -60,12 +63,13 @@ def find_useful_cards(h: Hand, objective: Objective, max_extra_jokers=0):
     additional_jokers = 0
     jokers_beyond_utility = 0
 
-    set_iterator = iter_sets_complete if objective.num_sets > 0 else iter_sets
+    set_iterator = iter_sets_complete if objective.num_sets > 0 else iter_sets_lut
+    run_iterator = iter_runs_lut
 
     while (not useful_missing_cards) or (jokers_beyond_utility < max_extra_jokers):
         if useful_missing_cards:
           jokers_beyond_utility += 1
-        for meld in iter_melds(h, objective, set_iterator=set_iterator):
+        for meld in iter_melds(h, objective, run_iterator=run_iterator, set_iterator=set_iterator):
             cs = CardSet()
             for combo in meld:
                 for card in combo:
@@ -78,7 +82,7 @@ def find_useful_cards(h: Hand, objective: Objective, max_extra_jokers=0):
                 useful_card_sets[cs] += 1
         h.put_card(Card.joker())
         additional_jokers += 1
-    
+
     return useful_missing_cards, useful_existing_cards, useful_card_sets
 
 
