@@ -12,7 +12,6 @@ from .generation import (
     iter_runs_lut,
     IndexedHand,
     _RUN_LUT,
-    rundex_to_vector,
 )
 
 from typing import Dict
@@ -133,7 +132,7 @@ def find_useful_cards_naive(h: Hand, objective: Objective):
     if objective.num_runs:
         for jokers in range(4):
             for color, rundex in h.rundexen.items():
-                for start, joker_vec in _RUN_LUT[jokers][rundex_to_vector(rundex)]:
+                for start, joker_vec in _RUN_LUT[jokers][rundex.to_vector()]:
                     for index, has_joker in enumerate(joker_vec):
                         if has_joker:
                             useful_missing_cards[Card.of(start + index, color)][jokers] += 1

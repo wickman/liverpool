@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import random
 import sys
 
-from typing import Iterable, List, Optional, Union, Tuple
+from typing import Iterable, List, Optional, Union, Tuple, Dict
 
 
 class Color:
@@ -246,6 +246,37 @@ class Card:
         )
 
 
+class Extend:
+    """A union of two runs that yields the overlapping run and extensions to the left and right."""
+
+    __slots__ = ("left", "right")
+
+    def __init__(
+        self,
+        left: Optional[List[Card]] = None,
+        right: Optional[List[Card]] = None,
+    ) -> None:
+        self.left: List[Card] = left if left is not None else []
+        self.right: List[Card] = right if right is not None else []
+
+    def __len__(self):
+        return len(self.left) + len(self.right)
+
+    def __iter__(self):
+        return iter(self.left + self.right)
+
+    def __str__(self):
+        run_str = "()"
+        if self.left:
+            run_str = " ".join("%s" % card for card in self.left) + "++" + run_str
+        if self.right:
+            run_str += "++" + " ".join("%s" % card for card in self.right)
+        return run_str
+
+    def __repr__(self):
+        return "Extend(%r, %r)" % (self.left, self.right)
+
+
 class Run:
     """A run of cards of the same color."""
 
@@ -326,6 +357,11 @@ class Run:
         else:
             raise self.InvalidExtend("Card does not extend the run.")
 
+    def update(self, extend: Extend) -> "Run":
+        if not isinstance(extend, Extend):
+            raise TypeError("Expected extend to be an Extend, got %s" % type(extend))
+        return Run(extend.left + list(self) + extend.right)
+
     def __len__(self):
         return self.length
 
@@ -367,6 +403,13 @@ class Run:
             self.__class__.__name__,
             ", ".join(map(repr, self)),
         )
+
+
+class Add(list):
+    """A list of cards that can be added to a set."""
+
+    def __str__(self):
+        return " ".join("%s" % card for card in self)
 
 
 class Set:
@@ -421,6 +464,15 @@ class Set:
             raise self.InvalidExtend("Card does not match set rank.")
         return Set(tuple(Card(card) for card in self.cards) + (card,))
 
+    def update(self, add: Add) -> "Set":
+        if not isinstance(add, Add):
+            raise TypeError("Expected add to be an Add, got %s" % type(add))
+        if not all(isinstance(card, Card) for card in add):
+            raise TypeError("Expected add to be a list of Cards.")
+        if not all(card.rank == self.rank for card in add):
+            raise ValueError("Expected all cards to be the same rank.")
+        return Set(tuple(Card(value) for value in self.cards) + tuple(add))
+
     @property
     def length(self) -> int:
         return len(self.cards)
@@ -473,6 +525,20 @@ class Objective(object):
         return "%d sets / %d runs" % (self.num_sets, self.num_runs)
 
 
+class MeldUpdate:
+    def __init__(
+        self, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None
+    ) -> None:
+        self.adds = adds or {}
+        self.extends = extends or {}
+
+    def __iter__(self):
+        for add in self.adds.values():
+            yield from add
+        for extend in self.extends.values():
+            yield from extend
+
+
 class Meld:
     """A collection of sets and runs."""
 
@@ -505,6 +571,15 @@ class Meld:
 
     def __str__(self):
         return "Meld(%s)" % "   ".join("%s" % combo for combo in (self.sets + self.runs))
+
+    def update(self, update: MeldUpdate) -> "Meld":
+        meld_sets = list(self.sets)
+        meld_runs = list(self.runs)
+        for add_id, add in update.adds.items():
+            meld_sets[add_id] = meld_sets[add_id].update(add)
+        for extend_id, extend in update.extends.items():
+            meld_runs[extend_id] = meld_runs[extend_id].update(extend)
+        return Meld(meld_sets, meld_runs)
 
 
 class Deck:

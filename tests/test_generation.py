@@ -124,7 +124,6 @@ def test_extend_from():
     # extend right
     r2 = Run.of(Color.HEART, start=2, jokers=5 * [False])
     e = extend_from(r1, r2)
-    assert e.run == r1
     assert e.left == []
     assert e.right == [Card.of(6, Color.HEART)]
 
@@ -132,7 +131,6 @@ def test_extend_from():
     r1 = Run.of(Color.HEART, start=3, jokers=4 * [False])
     r2 = Run.of(Color.HEART, start=2, jokers=5 * [False])
     e = extend_from(r1, r2)
-    assert e.run == r1
     assert e.left == [Card.of(2, Color.HEART)]
     assert e.right == []
 
@@ -140,7 +138,6 @@ def test_extend_from():
     r1 = Run.of(Color.HEART, start=3, jokers=4 * [False])
     r2 = Run.of(Color.HEART, start=2, jokers=6 * [False])
     e = extend_from(r1, r2)
-    assert e.run == r1
     assert e.left == [Card.of(2, Color.HEART)]
     assert e.right == [Card.of(7, Color.HEART)]
 
@@ -159,9 +156,7 @@ def test_iter_extends():
 
     all_extends = list(iter_extends(h, run))
     assert len(all_extends) == 2
-    assert all_extends[0].run == run
     assert all_extends[0].left == all_extends[0].right == []
-    assert all_extends[1].run == run
     assert all_extends[1].left == [Card.of(2, Color.HEART)]
     assert all_extends[1].right == []
 

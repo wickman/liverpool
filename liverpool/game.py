@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABCMeta
 from dataclasses import dataclass
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 import time
 
 from .algorithms import (
@@ -10,7 +10,7 @@ from .algorithms import (
     missing_utility,
     existing_utility,
 )
-from .common import Deck, Card, Objective, Meld
+from .common import Deck, Card, Objective, Meld, MeldUpdate, Add, Extend
 from .hand import Hand
 from .generation import (
     iter_sets,
@@ -18,40 +18,19 @@ from .generation import (
     iter_runs,
     iter_extends,
     iter_adds,
-    update_meld,
     iter_updates_multi,
-    MeldUpdate,
-    Extend,
-    Add,
 )
-
-
-@dataclass
-class Edit:
-    pid: int
-    adds: Optional[Dict[int, Add]]
-    extends: Optional[Dict[int, Extend]]
-
-    def __iter__(self):
-        if self.adds is not None:
-            for add in self.adds.values():
-                for card in add:
-                    yield card
-        if self.extends is not None:
-            for extend in self.extends.values():
-                for card in extend:
-                    yield card
 
 
 class Move:
     def __init__(
         self,
         meld: Optional[Meld] = None,
-        edits: Optional[List[Edit]] = None,
+        updates: Dict[int, MeldUpdate] = None,
         discard: Optional[Card] = None,
     ) -> None:
         self.meld = meld
-        self.edits = edits or []
+        self.updates = updates or {}
         self.discard = discard
 
     def __iter__(self):
@@ -59,23 +38,23 @@ class Move:
             for combo in self.meld:
                 for card in combo:
                     yield card
-        if self.edits:
-            for edit in self.edits:
-                yield from edit
+        if self.updates:
+            for update in self.updates.values():
+                yield from update
         if self.discard is not None:
             yield self.discard
 
     def __repr__(self) -> str:
-        return "Move(meld=%r, edits=[%r], discard=%r)" % (
+        return "Move(meld=%r, updates=%r, discard=%r)" % (
             self.meld,
-            " ".join(repr(edit) for edit in self.edits) if self.edits else "",
+            self.updates,
             self.discard,
         )
 
     def __str__(self):
-        return "Meld: %s / Edits: %s / Discard: %s" % (
+        return "Meld: %s / Edits: {%s} / Discard: %s" % (
             self.meld,
-            " ".join(str(edit) for edit in self.edits) if self.edits else "",
+            ", ".join("%d=%s" % (pid, update) for pid, update in self.updates.items()),
             self.discard,
         )
 
@@ -173,9 +152,10 @@ def document_utility(h, objective, useful_missing_cards, useful_existing_cards, 
         _pp("%s %s" % (c, usefulness))
 
 
-def edit_score(edits: Dict[int, MeldUpdate]) -> int:
+# Put these scores on the MeldUpdate / Meld classes themselves
+def edit_score(updates: Dict[int, MeldUpdate]) -> int:
     score = 0
-    for update in edits.values():
+    for update in updates.values():
         if update.adds is not None:
             score += sum(card.score for add in update.adds.values() for card in add)
         if update.extends is not None:
@@ -183,7 +163,7 @@ def edit_score(edits: Dict[int, MeldUpdate]) -> int:
     return score
 
 
-def meld_score(meld: Meld) -> int:
+def meld_score(meld: Meld) -> Tuple[int, int]:
     meld_cards = [card for combo in meld for card in combo]
     return sum(card.score for card in meld_cards), len(meld_cards)
 
@@ -299,19 +279,14 @@ class NaivePlayer(Player):
         else:
             my_meld = melds[self.pid]
 
-        edits = []
+        updates = {}
         if my_meld is not None and new_meld is None:
             # iterable of Dict[int, MeldUpdate] (pid -> MeldUpdate)
-            possible_edits = sorted(iter_updates_multi(remaining_cards, melds), key=edit_score)
-            if possible_edits:
-                best_edit = possible_edits.pop()
-                # convert Dict[int, MeldUpdate] to list of Edits
-                edits = [
-                    Edit(pid=pid, adds=edit.adds, extends=edit.extends)
-                    for pid, edit in best_edit.items()
-                ]
-                for edit in edits:
-                    for card in edit:
+            possible_updates = sorted(iter_updates_multi(remaining_cards, melds), key=edit_score)
+            if possible_updates:
+                updates = possible_updates.pop()
+                for update in updates.values():
+                    for card in update:
                         remaining_cards.take_card(card.dematerialized())
 
         # need to find the card least likely to be useful for future edits...so not just against our own
@@ -319,7 +294,7 @@ class NaivePlayer(Player):
         highest_value_card = None
         if not remaining_cards.empty:
             highest_value_card = max(remaining_cards, key=lambda card: card.score)
-        return Move(meld=new_meld, edits=edits, discard=highest_value_card)
+        return Move(meld=new_meld, updates=updates, discard=highest_value_card)
 
 
 class Trick:
@@ -360,8 +335,8 @@ class Trick:
         assert action.move is not None
         if action.move.meld:
             self.__melds[action.player_id] = action.move.meld
-        for edit in action.move.edits:
-            self.__melds[edit.pid] = update_meld(self.__melds[edit.pid], edit.adds, edit.extends)
+        for pid, update in action.move.updates.items():
+            self.__melds[pid] = self.__melds[pid].update(update)
         for card in action.move:
             self.__players[action.player_id].discard(card)
         if action.move.discard is None:

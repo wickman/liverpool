@@ -35,6 +35,9 @@ from .common import (
     Rank,
     Run,
     Set,
+    Add,
+    Extend,
+    MeldUpdate,
 )
 from .hand import Hand
 
@@ -51,7 +54,8 @@ __all__ = (
 )
 
 
-class Setdex(object):
+# TODO roll up the rest of the set generation logic here
+class Setdex:
     """A set's colors represented as a bit vector.
 
     There are 4 colors for a Card (2 bits = 0, 1, 2, 3 = CLUB, SPADE, HEART, DIAMOND)
@@ -94,25 +98,66 @@ class Setdex(object):
                 yield color
 
 
+# TODO roll up the rest of the methods into here and put run generation logic here
+class Rundex:
+    @classmethod
+    def from_vector(cls, vector) -> "Rundex":
+        rd = cls()
+        for k in range(Rank.MAX + 1):
+            if k < Rank.MIN:
+                yield 0
+            else:
+                if vector & (1 << (k - Rank.MIN)):
+                    rd.add(k)
+        return rd
+
+    def __init__(self) -> None:
+        self._array = bytearray([0] * (Rank.MAX + 1))
+
+    def add(self, rank: int) -> None:
+        self._array[rank] += 1
+
+    def remove(self, rank: int) -> None:
+        self._array[rank] -= 1
+        assert self._array[rank] >= 0
+
+    def __iter__(self) -> Iterable[int]:
+        array_copy = bytes(self._array)
+        for rank in range(Rank.MAX + 1):
+            for _ in range(array_copy[rank]):
+                yield rank
+
+    def iter_ranks(self) -> Iterable[int]:
+        for rank, count in enumerate(self._array):
+            if count:
+                yield rank
+
+    def to_vector(self) -> int:
+        value = 0
+        for rank, count in enumerate(self._array):
+            if count:
+                value |= 1 << (rank - Rank.MIN)
+        return value
+
+
 class IndexedHand(Hand):
     """A hand of cards annotated by a rundex and setdexen for fast combinatorial move generation."""
 
     __slots__ = ("setdexen", "rundexen")
 
     def __init__(self, cards: Optional[List[Card]] = None):
-        self.rundexen = dict((color, [0] * (Rank.MAX + 1)) for color in Color.iter())
+        self.rundexen = dict((color, Rundex()) for color in Color.iter())
         self.setdexen = [Setdex() for k in range(Rank.MAX + 1)]
         super(IndexedHand, self).__init__(cards)
 
     def iter_color(self, color):
-        for rank, count in enumerate(self.rundexen[color][:]):
-            for _ in range(count):
-                yield Card.of(rank, color)
+        for rank in self.rundexen[color]:
+            yield Card.of(rank, color)
 
     def take_card(self, card):
         taken_card = super(IndexedHand, self).take_card(card)
         if not taken_card.is_joker:
-            self.rundexen[card.color][card.rank] -= 1
+            self.rundexen[card.color].remove(card.rank)
             self.setdexen[card.rank].remove(card.color)
         return taken_card
 
@@ -120,7 +165,7 @@ class IndexedHand(Hand):
         super(IndexedHand, self).put_card(card)
 
         if not card.is_joker:
-            self.rundexen[card.color][card.rank] += 1
+            self.rundexen[card.color].add(card.rank)
             self.setdexen[card.rank].append(card.color)
 
 
@@ -150,7 +195,7 @@ def interleave(card_vector, joker_vector):
 #       ...
 #
 # for high joker counts, this will reduce the complexity
-def ranks_from_rundex(rundex, jokers=0):
+def ranks_from_rundex(rundex: Rundex, jokers=0):
     """Given a rundex, return all possible runs.
 
     Runs are a tuple of (start_rank, joker_indices) where joker_indices is a
@@ -160,7 +205,7 @@ def ranks_from_rundex(rundex, jokers=0):
     # total_jokers = min(2, jokers)  # cap runs at 2 jokers
     total_jokers = min(3, jokers)
     runs = []
-    ranks = [rank for rank, count in enumerate(rundex) if count]
+    ranks = [rank for rank in rundex.iter_ranks()]
     for num_jokers in range(total_jokers + 1):
         for rank_selection in range(Run.MIN - num_jokers, len(ranks) + 1):
             for selected_cards in unique_combinations(ranks, rank_selection):
@@ -222,22 +267,6 @@ _SET_LUT_FILE = os.path.expanduser("~/.liverpool_sets")
 _SET_LUT_MAX_JOKERS = 3
 
 
-def rundex_to_vector(rundex):
-    value = 0
-    for k, count in enumerate(rundex):
-        if count:
-            value |= 1 << (k - Rank.MIN)
-    return value
-
-
-def vector_to_rundex(vector):
-    for k in range(Rank.MAX + 1):
-        if k < Rank.MIN:
-            yield 0
-        else:
-            yield 1 if vector & (1 << (k - Rank.MIN)) else 0
-
-
 def precompute_luts(max_set_jokers=_SET_LUT_MAX_JOKERS, max_run_jokers=_RUN_LUT_MAX_JOKERS):
     print("Precomputing LUTS. This will take a while...")
 
@@ -254,7 +283,7 @@ def precompute_luts(max_set_jokers=_SET_LUT_MAX_JOKERS, max_run_jokers=_RUN_LUT_
         print("Precomputing runs with %d jokers..." % total_jokers, end="")
         _RUN_LUT[total_jokers] = {}
         for card_vector in range(2 ** (Rank.MAX - Rank.MIN + 1)):
-            rundex = list(vector_to_rundex(card_vector))
+            rundex = Rundex.from_vector(card_vector)
             _RUN_LUT[total_jokers][card_vector] = list(ranks_from_rundex(rundex, total_jokers))
         print("  took %0.2f seconds" % (time.time() - now))
 
@@ -304,7 +333,7 @@ def iter_runs_lut(hand):
     if not isinstance(hand, IndexedHand):
         hand = IndexedHand(cards=list(hand))
     for color, rundex in hand.rundexen.copy().items():  # why is this copied?
-        vector = rundex_to_vector(rundex)
+        vector = rundex.to_vector()
         for start, jokers in _RUN_LUT[min(hand.jokers, _RUN_LUT_MAX_JOKERS)][vector]:
             # print('run: %s, %s, %s' % (color, start, jokers))
             yield Run.of(color, start, jokers)
@@ -355,11 +384,9 @@ def iter_melds(hand, strategy, set_iterator=iter_sets, run_iterator=iter_runs):
                 hand.undo()
 
 
-class Add(list):
-    """A list of cards that can be added to a set."""
-
-    def __str__(self):
-        return " ".join("%s" % card for card in self)
+# TODO Add and Extend should be defined in common and there should be .update methods
+# on Set and Run respectively that takes Set.update(Add) -> Set, and Run.update(Extend) -> Run.
+# Similarly Meld.Update(MeldUpdate) -> Meld.
 
 
 def iter_adds(hand, set_):
@@ -373,39 +400,6 @@ def iter_adds(hand, set_):
             else Card.of(set_.rank, Color.SPADE, joker=True)
             for color in combination
         )
-
-
-class Extend:
-    """A union of two runs that yields the overlapping run and extensions to the left and right."""
-
-    __slots__ = ("run", "left", "right")
-
-    def __init__(
-        self,
-        run: "Run",
-        left: Optional[List[Card]] = None,
-        right: Optional[List[Card]] = None,
-    ) -> None:
-        self.run: Run = run
-        self.left: List[Card] = left if left is not None else []
-        self.right: List[Card] = right if right is not None else []
-
-    def __len__(self):
-        return len(self.left) + len(self.right)
-
-    def __iter__(self):
-        return iter(self.left + self.right)
-
-    def __str__(self):
-        run_str = "(%s)" % self.run
-        if self.left:
-            run_str = " ".join("%s" % card for card in self.left) + "++" + run_str
-        if self.right:
-            run_str += "++" + " ".join("%s" % card for card in self.right)
-        return run_str
-
-    def __repr__(self):
-        return "Extend(%r, %r, %r)" % (self.run, self.left, self.right)
 
 
 def extend_from(run1: Run, run2: Run) -> Extend:
@@ -425,13 +419,12 @@ def extend_from(run1: Run, run2: Run) -> Extend:
     )
 
     if other_cards_overlap != my_cards:
-        # I suspect this will raise
         raise ValueError("Runs must overlap.")
 
     if not left and not right:
         raise ValueError("Empty extension.")
 
-    return Extend(run1, left, right)
+    return Extend(left, right)
 
 
 def iter_extends(hand: Hand, run: Run, run_iterator=iter_runs):
@@ -447,7 +440,8 @@ def iter_extends(hand: Hand, run: Run, run_iterator=iter_runs):
     for _ in range(hand.jokers):
         new_hand.put_card(Card.joker())
 
-    yield Extend(run)
+    # why yield empty run?
+    yield Extend()
 
     # generate all possible runs that can be generated from the hand
     for extended_run in run_iterator(new_hand):
@@ -456,31 +450,6 @@ def iter_extends(hand: Hand, run: Run, run_iterator=iter_runs):
             yield extend_from(run, extended_run)
         except ValueError:
             continue
-
-
-# This is ugly af
-def update_meld(
-    meld: Meld, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None
-) -> Meld:
-    adds = adds or {}
-    extends = extends or {}
-    meld_sets = {set_id: set_ for set_id, set_ in enumerate(meld.sets)}
-    meld_runs = {run_id: run for run_id, run in enumerate(meld.runs)}
-    for add_id, add in adds.items():
-        for card in add:
-            meld_sets[add_id] = meld_sets[add_id].extend(card)
-    for extend_id, extend in extends.items():
-        assert extend.run == meld_runs[extend_id]
-        meld_runs[extend_id] = Run(extend.left + list(extend.run) + extend.right)
-    return Meld(list(meld_sets.values()), list(meld_runs.values()))
-
-
-class MeldUpdate(list):
-    def __init__(
-        self, adds: Optional[Dict[int, Add]] = None, extends: Optional[Dict[int, Extend]] = None
-    ) -> None:
-        self.adds = adds or {}
-        self.extends = extends or {}
 
 
 def iter_updates(hand, meld, run_iterator=iter_runs) -> Iterable[MeldUpdate]:
@@ -549,16 +518,3 @@ def iter_updates_multi(
                     )
                     for pid, combos in updates.items()
                 }
-
-
-"""
-from liverpool.common import *
-from liverpool.generation import *
-from liverpool.hand import Hand
-new_h = Hand(cards=[Card(7, Color.HEART)])
-new_h.put_card(Card.JOKER)
-meld = list(iter_melds(h, Objective(1,1)))[-1]
-for update in iter_updates(new_h, meld):
-  print(' , '.join('%s' % combo for combo in update))
-
-"""
