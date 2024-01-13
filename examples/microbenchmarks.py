@@ -3,6 +3,7 @@ from collections import defaultdict
 import time
 import sys
 
+from liverpool.algorithms import find_useful_cards, find_useful_cards_naive
 from liverpool.common import (
     Card,
     Color,
@@ -36,7 +37,7 @@ def timed(msg):
     reported_values = {}
     yield reported_values
     end = time.time()
-    print('%-40s %10s (%7s/iter) {%s}' % (
+    print('%-50s %10s (%8s/iter) {%s}' % (
         msg + ':',
         '%.1fms' % (1000.0 * (end - start)),
         '%.1fus' % (1000000.0 * (end - start) / ITERS),
@@ -44,9 +45,9 @@ def timed(msg):
 
 
 def generate_combo_set(iterator, num_combos=ITERS, seed=1):
-    combos = []
     Deck.seed(seed)
 
+    combos = []
     hands = 0
     while len(combos) < num_combos:
        d = Deck.new(count=2)
@@ -60,6 +61,7 @@ def generate_combo_set(iterator, num_combos=ITERS, seed=1):
 
 def generate_combos(iterator, num_combos=ITERS, seed=1):
     Deck.seed(seed)
+
     combos = 0
     for _ in range(num_combos):
        d = Deck.new(count=2)
@@ -70,12 +72,13 @@ def generate_combos(iterator, num_combos=ITERS, seed=1):
     return combos
 
 
-def generate_melds(objective, run_iter, set_iter, num_melds=ITERS, seed=1):
+def generate_melds(objective, num_cards, run_iter, set_iter, num_melds=ITERS, seed=1):
     Deck.seed(seed)
+
     combos = 0
     for _ in range(num_melds):
        d = Deck.new(count=2)
-       h = IndexedHand.from_deck(d, 10)
+       h = IndexedHand.from_deck(d, num_cards)
        for m in iter_melds(h, objective, run_iterator=run_iter, set_iterator=set_iter):
          combos += 1
     
@@ -90,6 +93,35 @@ def deal_cards(num_hands=ITERS, hand_impl=Hand, seed=1):
         h = hand_impl.from_deck(d, 10)
 
     return
+
+
+def generate_useful_cards(objective, num_cards, run_iter, set_iter, num_melds=ITERS, seed=1):
+    Deck.seed(seed)
+
+    useful_missing, useful_existing = 0, 0
+    for _ in range(num_melds):
+       d = Deck.new(count=2)
+       h = IndexedHand.from_deck(d, num_cards)
+       missing, existing = find_useful_cards(h, objective)
+       useful_missing += len(missing)
+       useful_existing += len(existing)
+
+    return useful_missing, useful_existing
+
+
+def generate_useful_cards_naive(objective, num_cards, num_melds=ITERS, seed=1):
+    Deck.seed(seed)
+
+    useful_missing, useful_existing = 0, 0
+    for _ in range(num_melds):
+       d = Deck.new(count=2)
+       h = IndexedHand.from_deck(d, num_cards)
+       missing, existing = find_useful_cards_naive(h, objective)
+       useful_missing += len(missing)
+       useful_existing += len(existing)
+
+    return useful_missing, useful_existing
+
 
 
 maybe_precompute()
@@ -118,11 +150,23 @@ with timed('generating runs (lut)') as rv:
 
 for objective, cards in Game.TRICKS:
     with timed('generating melds     (%s)' % objective) as rv:
-        combos = generate_melds(objective, iter_runs, iter_sets)
+        combos = generate_melds(objective, cards, iter_runs, iter_sets)
         rv['combos'] = combos
     with timed('generating melds lut (%s)' % objective) as rv:
-        combos = generate_melds(objective, iter_runs_lut, iter_sets_lut)
+        combos = generate_melds(objective, cards, iter_runs_lut, iter_sets_lut)
         rv['combos'] = combos
+
+for objective, cards in Game.TRICKS:
+    with timed('generating useful cards       (%s)' % objective) as rv:
+        useful_missing, useful_existing = generate_useful_cards(objective, cards, iter_runs, iter_sets)
+        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
+    with timed('generating useful cards lut   (%s)' % objective) as rv:
+        useful_missing, useful_existing = generate_useful_cards(objective, cards, iter_runs_lut, iter_sets_lut)
+        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
+    with timed('generating useful cards naive (%s)' % objective) as rv:
+        useful_missing, useful_existing = generate_useful_cards_naive(objective, cards)
+        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
+
 
 sets, _ = generate_combo_set(iter_sets)
 sets_lut, _ = generate_combo_set(iter_sets_lut)

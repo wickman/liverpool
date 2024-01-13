@@ -3,7 +3,13 @@ from dataclasses import dataclass
 from typing import Optional, List, Dict
 import time
 
-from .algorithms import find_useful_cards, least_useful, missing_utility, existing_utility
+from .algorithms import (
+    find_useful_cards,
+    find_useful_cards_naive,
+    least_useful,
+    missing_utility,
+    existing_utility,
+)
 from .common import Deck, Card, Objective, Meld
 from .hand import Hand
 from .generation import (
@@ -100,37 +106,6 @@ class Action:
         return "Unknown action"
 
 
-"""
-class Listener(metaclass=ABC):
-    @abstractmethod
-    def consume_action(self, action: Action) -> None:
-        pass
-
-
-class PlayerView(Listener):
-    def __init__(self, player_id: int) -> None:
-        self.pid = player_id
-        self.known_cards = []
-        self.unknown_count = 0
-
-    def consume_action(self, action: Action) -> None:
-        if action.player_id != self.pid:
-            return
-        if action.move is not None:
-            for card in action.move:
-                if card in self.known_cards:
-                    self.known_cards.remove(card)
-                else:
-                    self.unknown_count -= 1
-        elif action.purchase is not None:
-            self.known_cards.append(action.purchase)
-        elif action.draw_discard is not None:
-            self.known_cards.append(action.draw_discard)
-        elif action.draw_deck:
-            self.unknown_count += 1
-     """
-
-
 class Player(metaclass=ABCMeta):
     def __init__(self, pid: int, hand: Optional[Hand] = None) -> None:
         self.pid = pid
@@ -170,9 +145,7 @@ class Player(metaclass=ABCMeta):
         pass
 
 
-def document_utility(
-    h, objective, useful_missing_cards, useful_existing_cards, useful_card_sets, indent=4
-):
+def document_utility(h, objective, useful_missing_cards, useful_existing_cards, indent=4):
     def _p(s):
         print(" " * indent + str(s))
 
@@ -191,15 +164,9 @@ def document_utility(
     for m in iter_melds(h, objective):
         _pp(m)
 
-    _p("----useful combos-----")
-
-    for cs, count in sorted(useful_card_sets.items(), key=lambda kv: (len(kv[0]), -kv[1])):
-        _pp("%s -> %s" % (cs, count))
-
     _p("----useful missing cards-----")
-
     for c, usefulness in sorted(useful_missing_cards.items(), key=missing_utility):
-        _pp("%s %s" % (c, usefulness))
+        _pp("%s %s" % (c, dict(usefulness)))
 
     _p("----useless hand cards-----")
     for c, usefulness in sorted(useful_existing_cards.items(), key=existing_utility, reverse=True):
@@ -222,30 +189,33 @@ def meld_score(meld: Meld) -> int:
 
 
 class NaivePlayer(Player):
-    def __init__(self, *args, **kw) -> None:
+    def __init__(self, *args, super_naive=False, **kw) -> None:
         super().__init__(*args, **kw)
-        self._useful_missing = self._useful_existing = self._useful_combos = None
+        self._useful_missing = self._useful_existing = None
         self._melds = {}
         self._meld_hits, self._meld_misses = 0, 0
         self._fuc_hits, self._fuc_misses = 0, 0
+        self._super_naive = super_naive
 
     def _find_useful_cards(self):
         if self._useful_missing is None:
             self._fuc_misses += 1
-            self._useful_missing, self._useful_existing, self._useful_combos = find_useful_cards(
-                self.hand, self.objective
+            self._useful_missing, self._useful_existing = (
+                find_useful_cards(self.hand, self.objective)
+                if not self._super_naive
+                else find_useful_cards_naive(self.hand, self.objective)
             )
         else:
             self._fuc_hits += 1
-        return self._useful_missing, self._useful_existing, self._useful_combos
+        return self._useful_missing, self._useful_existing
 
     def take(self, card: Card) -> None:
         super().take(card)
-        self._useful_missing, self._useful_existing, self._useful_combos = None, None, None
+        self._useful_missing, self._useful_existing = None, None
 
     def discard(self, card: Card) -> None:
         super().discard(card)
-        self._useful_missing, self._useful_existing, self._useful_combos = None, None, None
+        self._useful_missing, self._useful_existing = None, None
 
     def publish_action(self, action: Action, melds: Dict[int, Meld]) -> None:
         # ignore published actions
@@ -279,7 +249,9 @@ class NaivePlayer(Player):
 
         if self.pid in melds:
             return False
-        useful_missing, _, _ = self._find_useful_cards()
+        useful_missing, _ = self._find_useful_cards()
+        # top10 = sorted(useful_missing.items(), key=missing_utility, reverse=True)[0:10]
+        # top10 = set(card for card, _ in top10)
         if card in useful_missing:
             return True
         return False
@@ -289,7 +261,9 @@ class NaivePlayer(Player):
         # if melded, decline unless it reduces our deadwood?
         if self.pid in melds:
             return False
-        useful_missing, _, _ = self._find_useful_cards()
+        useful_missing, _ = self._find_useful_cards()
+        # top10 = sorted(useful_missing.items(), key=missing_utility, reverse=True)[0:10]
+        # top10 = set(card for card, _ in top10)
         if card in useful_missing:
             return True
         return False
@@ -313,7 +287,7 @@ class NaivePlayer(Player):
         if self.pid not in melds:
             my_melds = self._iter_melds()
             if len(my_melds) == 0:
-                _, useful_existing, _ = self._find_useful_cards()
+                _, useful_existing = self._find_useful_cards()
                 return Move(discard=least_useful(useful_existing))
             else:
                 for meld in my_melds:
@@ -546,7 +520,7 @@ class Game:
 
     def __init__(self, num_players: int = 4) -> None:
         self.__dealer_cursor = 0
-        self.__players = {k: NaivePlayer(k) for k in range(num_players)}
+        self.__players = {k: NaivePlayer(k, super_naive=False) for k in range(num_players)}
         self.__player_scores = {pid: 0 for pid in self.__players}
         self.__trick_stats = {}
 

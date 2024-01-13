@@ -43,7 +43,7 @@ class Hand:
         return cls(cards)
 
     def __init__(self, cards: Iterable[Card] = None) -> None:
-        self.cards: array[int] = array("B", [0] * (Card.JOKER_VALUE + 1))
+        self.cards: bytearray = bytearray([0] * (Card.JOKER_VALUE + 1))
         # stack of takes, None represents start of a "transaction"
         self.taken: List[Optional[Card]] = []
         for card in cards or []:
@@ -59,7 +59,10 @@ class Hand:
         return sum(self.cards) == 0
 
     def __hash__(self) -> int:
-        return hash(tuple(self.cards))
+        return hash(bytes(self.cards))
+
+    def __contains__(self, card: Card) -> bool:
+        return self.cards[card.value] > 0
 
     def __len__(self) -> int:
         return sum(self.cards)
@@ -88,12 +91,8 @@ class Hand:
         if not isinstance(card, Card):
             raise TypeError("Expected card to be Card, got %s" % type(card))
 
-        try:
-            if self.cards[card.value] <= 0:
-                raise self.InvalidTake("You do not have a %s!" % card)
-        except IndexError:
-            print("card.value %d" % card.value)
-            raise
+        if self.cards[card.value] <= 0:
+            raise self.InvalidTake("You do not have a %s!" % card)
 
         self.cards[card.value] -= 1
         self.taken.append(card)

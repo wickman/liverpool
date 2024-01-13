@@ -38,7 +38,7 @@ class TestRun:
         # test run w/ joker_indices = None
         r = Run.of(Color.HEART, start=2, jokers=4 * [False])
         assert r.length == 4
-        assert r.cards == (
+        assert tuple(r) == (
             Card.of(2, Color.HEART),
             Card.of(3, Color.HEART),
             Card.of(4, Color.HEART),
@@ -48,7 +48,7 @@ class TestRun:
         # test run w/ joker_indices = (0, 2)
         r = Run.of(Color.HEART, start=2, jokers=[True, False, True, False])
         assert r.length == 4
-        assert r.cards == (
+        assert tuple(r) == (
             Card.of(2, Color.HEART, joker=True),
             Card.of(3, Color.HEART),
             Card.of(4, Color.HEART, joker=True),

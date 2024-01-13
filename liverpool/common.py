@@ -122,27 +122,6 @@ class Rank:
         return range(cls.MIN, cls.MAX + 1)
 
 
-"""
-Right now Card has a single integer as its storage.  It represents a JOKER as 0,
-and all other cards as rank + color * (rank.max + 1), where rank is 2..14 and color is
-0..3.  This means that valid values are Card.min (2) to Card.max (59), which fits within
-5 bits.
-
-We should be able to set the 7th bit (64) to indicate that this is a materialized joker.
-That means that it's a Joker but it's been materialized to a specific rank and color.
-We need to be more careful this way but it makes a *lot* of things easier, assuming
-we minimize the number of places where this logic needs to take place, specifically
-around things like move generation and meld editing.
-
-We should have a method on Card that materializes a Joker into a materialized joker, i.e.
-Card.materialize(rank, color) -> Card that asserts ValueError if it's not a joker.
-
-This doesn't require any meaningful changes to Hand.
-We should reimplement Run so that it is a proper sequence of Cards with materialized jokers.
-We should reimplement Set so that it's a Set of Cards with materialized jokers.
-"""
-
-
 class Card:
     """A card in the game of Liverpool."""
 
@@ -308,11 +287,11 @@ class Run:
         for index, card in enumerate(cards):
             if card.rank != cards[0].rank + index:
                 raise ValueError("Expected cards to be in ascending order.")
-        self.cards = tuple(cards)
+        self.cards = bytes(card.value for card in cards)
 
     @property
     def color(self) -> int:
-        return self.cards[0].color
+        return Card(self.cards[0]).color
 
     @property
     def length(self) -> int:
@@ -320,7 +299,7 @@ class Run:
 
     @property
     def left(self) -> Card:
-        return self.cards[0]
+        return Card(self.cards[0])
 
     @property
     def next_left(self) -> Optional[Card]:
@@ -328,7 +307,7 @@ class Run:
 
     @property
     def right(self) -> Card:
-        return self.cards[-1]
+        return Card(self.cards[-1])
 
     @property
     def next_right(self) -> Optional[Card]:
@@ -341,9 +320,9 @@ class Run:
             raise TypeError("Expected card to be a Card, got %s" % type(card))
         common_card = card.as_common()
         if common_card == self.next_left:
-            return Run((card,) + self.cards)
+            return Run((card,) + tuple(Card(value) for value in self.cards))
         elif common_card == self.next_right:
-            return Run(self.cards + (card,))
+            return Run(tuple(Card(value) for value in self.cards) + (card,))
         else:
             raise self.InvalidExtend("Card does not extend the run.")
 
@@ -351,15 +330,12 @@ class Run:
         return self.length
 
     def __hash__(self):
-        return hash(b"run" + b"".join(card.value.to_bytes(1, "big") for card in self.cards))
-
-    def _as_tuple(self):
-        return self.cards
+        return hash(self.cards)
 
     def __lt__(self, other):
         if not isinstance(other, Run):
             raise TypeError("Expected other to be a Run, got %s" % type(other))
-        return self._as_tuple() < other._as_tuple()
+        return self.cards < other.cards
 
     def __eq__(self, other):
         if not isinstance(other, Run):
@@ -368,8 +344,8 @@ class Run:
 
     def __iter__(self) -> Iterable[Card]:
         """Iterate over the cards in the run."""
-        for card in self.cards:
-            yield card
+        for value in self.cards:
+            yield Card(value)
 
     def iter_left(self) -> Iterable[Card]:
         """Iterate, descending, over the cards to the left of the run."""
@@ -403,6 +379,7 @@ class Set:
         pass
 
     MIN = 3
+    DEFAULT_JOKER_COLOR = Color.SPADE
 
     @classmethod
     def of(cls, rank: int, colors: Iterable[Optional[int]]) -> "Set":
@@ -415,7 +392,9 @@ class Set:
             raise TypeError("Expected colors to be a tuple/list of integers.")
         # it is policy for the sake of sets to materialize jokers as a consistent color every time
         cards = [
-            Card.of(rank, color) if color is not None else Card.of(rank, Color.SPADE, joker=True)
+            Card.of(rank, color)
+            if color is not None
+            else Card.of(rank, cls.DEFAULT_JOKER_COLOR, joker=True)
             for color in colors
         ]
         return cls(cards)
@@ -429,18 +408,18 @@ class Set:
             raise ValueError("Expected at least %d cards, got %d" % (self.MIN, len(cards)))
         if not all(card.rank == cards[0].rank for card in cards):
             raise ValueError("Expected all cards to be the same rank.")
-        self.cards = tuple(sorted(cards))
+        self.cards = bytes(sorted(card.value for card in cards))
 
     @property
     def rank(self) -> int:
-        return self.cards[0].rank
+        return Card(self.cards[0]).rank
 
     def extend(self, card: Card) -> "Set":
         if not isinstance(card, Card):
             raise TypeError("Expected card to be a Card, got %s" % type(card))
         if card.rank != self.rank:
             raise self.InvalidExtend("Card does not match set rank.")
-        return Set(self.cards + (card,))
+        return Set(tuple(Card(card) for card in self.cards) + (card,))
 
     @property
     def length(self) -> int:
@@ -449,16 +428,13 @@ class Set:
     def __len__(self):
         return self.length
 
-    def _as_tuple(self):
-        return self.cards
-
     def __hash__(self):
-        return hash(b"set" + b"".join(card.value.to_bytes(1, "big") for card in self.cards))
+        return hash(self.cards)
 
     def __lt__(self, other):
         if not isinstance(other, Set):
             raise TypeError("Expected other to be a Set, got %s" % type(other))
-        return self._as_tuple() < other._as_tuple()
+        return self.cards < other.cards
 
     def __eq__(self, other):
         if not isinstance(other, Set):
@@ -466,11 +442,11 @@ class Set:
         return self.cards == other.cards
 
     def __iter__(self):
-        for card in self.cards:
-            yield card
+        for value in self.cards:
+            yield Card(value)
 
     def __str__(self):
-        return " ".join("%s" % card for card in self.cards)
+        return " ".join("%s" % card for card in self)
 
     def __repr__(self):
         return "%s((%s))" % (self.__class__.__name__, ", ".join(map(repr, self)))
@@ -478,7 +454,7 @@ class Set:
 
 class CardSet(list):
     def __hash__(self):
-        return hash(b"".join(card.value.to_bytes(1, "big") for card in self))
+        return hash(bytes(card.value for card in self))
 
     def __str__(self):
         return " ".join(str(card) for card in self)

@@ -60,7 +60,7 @@ class Setdex(object):
     """
 
     # Index set count.
-    __slots__ = ("value",)
+    __slots__ = ("value", "count")
 
     NUM_BITS = 2  # support 0, 1, 2 decks.  NUM_BITS=3 is 0-7 decks. etc
     SET_MASK = (1 << NUM_BITS) - 1
@@ -72,14 +72,17 @@ class Setdex(object):
 
     def __init__(self, value: int = 0) -> None:
         self.value = value
+        self.count = len(list(self))
 
     def append(self, color) -> None:
         """Add a color to the set.  NOT BOUNDS CHECKED."""
         self.value += 1 << (self.NUM_BITS * color)
+        self.count += 1
 
     def remove(self, color) -> None:
         """Remove a color from the set.  NOT BOUNDS CHECKED."""
         self.value -= 1 << (self.NUM_BITS * color)
+        self.count -= 1
 
     def __iter__(self) -> Iterable[int]:
         """List the colors in the set."""
@@ -336,25 +339,17 @@ def iter_melds(hand, strategy, set_iterator=iter_sets, run_iterator=iter_runs):
     if not isinstance(hand, IndexedHand):
         hand = IndexedHand(cards=list(hand))
     if strategy.num_runs == 0:
-        for sets in uniq(
-            itertools.combinations_with_replacement(set_iterator(hand), strategy.num_sets)
-        ):
+        for sets in uniq(itertools.combinations(set_iterator(hand), strategy.num_sets)):
             if take_committed(hand, sets, commit=False):
                 yield Meld(sets, None)
     elif strategy.num_sets == 0:
-        for runs in uniq(
-            itertools.combinations_with_replacement(run_iterator(hand), strategy.num_runs)
-        ):
+        for runs in uniq(itertools.combinations(run_iterator(hand), strategy.num_runs)):
             if take_committed(hand, runs, commit=False):
                 yield Meld(None, runs)
     else:
-        for sets in uniq(
-            itertools.combinations_with_replacement(set_iterator(hand), strategy.num_sets)
-        ):
+        for sets in uniq(itertools.combinations(set_iterator(hand), strategy.num_sets)):
             if take_committed(hand, sets, commit=True):
-                for runs in uniq(
-                    itertools.combinations_with_replacement(run_iterator(hand), strategy.num_runs)
-                ):
+                for runs in uniq(itertools.combinations(run_iterator(hand), strategy.num_runs)):
                     if take_committed(hand, runs, commit=False):
                         yield Meld(sets, runs)
                 hand.undo()
