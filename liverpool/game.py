@@ -221,23 +221,13 @@ def document_utility(h, objective, useful_missing_cards, useful_existing_cards, 
 class NaivePlayer(Player):
     def __init__(self, *args, super_naive=False, **kw) -> None:
         super().__init__(*args, **kw)
-        self._useful_missing = self._useful_existing = None
         self._melds = {}
-        self._meld_hits, self._meld_misses = 0, 0
-        self._fuc_hits, self._fuc_misses = 0, 0
-        self._super_naive = super_naive
+        self._useful_missing, self._useful_existing = None, None
 
-    def _find_useful_cards(self):
-        if self._useful_missing is None:
-            self._fuc_misses += 1
-            self._useful_missing, self._useful_existing = (
-                find_useful_cards(self.hand, self.objective)
-                if not self._super_naive
-                else find_useful_cards_naive(self.hand, self.objective)
-            )
-        else:
-            self._fuc_hits += 1
-        return self._useful_missing, self._useful_existing
+    def set_objective(self, objective: Objective) -> None:
+        super().set_objective(objective)
+        self._melds = {}
+        self._useful_missing, self._useful_existing = None, None
 
     def take(self, card: Card) -> None:
         super().take(card)
@@ -247,69 +237,41 @@ class NaivePlayer(Player):
         super().discard(card)
         self._useful_missing, self._useful_existing = None, None
 
+    def _find_useful_cards(self):
+        if self._useful_missing is None:
+            self._useful_missing, self._useful_existing = find_useful_cards(self.hand, self.objective)
+        return self._useful_missing, self._useful_existing
+
     def publish_action(self, action: Action, melds: Dict[int, Meld]) -> None:
         # ignore published actions
         pass
 
-    def set_objective(self, objective: Objective) -> None:
-        super().set_objective(objective)
-        self._melds = {}
-        print(
-            "Player %d FUC %d/%d (%.1f%%) Melds %d/%d (%.1f%%)"
-            % (
-                self.pid,
-                self._fuc_hits,
-                self._fuc_hits + self._fuc_misses,
-                100 * self._fuc_hits / (self._fuc_hits + self._fuc_misses)
-                if (self._fuc_hits + self._fuc_misses > 0)
-                else 0.0,
-                self._meld_hits,
-                self._meld_hits + self._meld_misses,
-                100 * self._meld_hits / (self._meld_hits + self._meld_misses)
-                if (self._meld_hits + self._meld_misses > 0)
-                else 0.0,
-            )
-        )
-
-    # TODO: We should memoize the results of find_useful_cards because it's both expensive
-    # and it doesn't change throughout the hand.
     def accepts_discard(self, card: Card, melds: Dict[int, Meld]) -> bool:
-        # if not melded, check for useful_missing
-        # if melded, check to see if we can extend any melds
-
         if self.pid in melds:
             return False
         useful_missing, _ = self._find_useful_cards()
-        # top10 = sorted(useful_missing.items(), key=missing_utility, reverse=True)[0:10]
-        # top10 = set(card for card, _ in top10)
         if card in useful_missing:
             return True
         return False
 
     def accepts_purchase(self, card: Card, melds: Dict[int, Meld]) -> bool:
-        # if not melded, check for useful_missing
-        # if melded, decline unless it reduces our deadwood?
         if self.pid in melds:
             return False
         useful_missing, _ = self._find_useful_cards()
-        # top10 = sorted(useful_missing.items(), key=missing_utility, reverse=True)[0:10]
-        # top10 = set(card for card, _ in top10)
         if card in useful_missing:
             return True
         return False
 
-    def _iter_melds(self) -> List[Meld]:
-        if self.hand not in self._melds:
-            self._meld_misses += 1
-            self._melds[self.hand] = sorted(
-                iter_melds(self.hand, self.objective, iter_sets_lut, iter_runs_lut),
+    def _iter_melds(self, hand: Hand) -> List[Meld]:
+        if hand not in self._melds:
+            self._melds[hand] = sorted(
+                iter_melds(hand, self.objective, iter_sets_lut, iter_runs_lut),
                 key=meld_score,
                 reverse=True,
             )
-        else:
-            self._meld_hits += 1
-        return self._melds[self.hand][:]
-
+        return self._melds[hand][:]
+        #return sorted(iter_melds(self.hand, self.objective, iter_sets_lut, iter_runs_lut), key=meld_score, reverse=True)
+    
     def request_move(self, melds: Dict[int, Meld]) -> Move:
         print("Player pid: %d, hand: %s" % (self.pid, self.hand))
 
@@ -317,7 +279,7 @@ class NaivePlayer(Player):
 
         my_meld = new_meld = None
         if self.pid not in melds:
-            my_melds = self._iter_melds()
+            my_melds = self._iter_melds(remaining_cards)
             if len(my_melds) == 0:
                 _, useful_existing = self._find_useful_cards()
                 return Move(discard=least_useful(useful_existing))
