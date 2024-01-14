@@ -3,27 +3,13 @@ from collections import defaultdict
 from .common import CardSet, Card, Rank, Objective, Color, Set
 from .hand import Hand
 from .generation import (
-    sets_from_colors,
-    materialized_sets_from_optional_colors,
     iter_melds,
-    iter_sets,
     iter_sets_lut,
-    iter_runs,
     iter_runs_lut,
     IndexedHand,
-    _RUN_LUT,
 )
 
 from typing import Dict
-
-
-def iter_sets_complete(h):
-    h = IndexedHand(cards=h)
-    for rank, colors in enumerate(h.setdexen):
-        if rank < 2:
-            continue
-        for combination in sets_from_colors(colors, h.jokers):
-            yield from materialized_sets_from_optional_colors(rank, combination)
 
 
 def missing_utility(kv):
@@ -56,23 +42,6 @@ def existing_utility(kv):
     return (-count, CARD_SCORES[rank])
 
 
-# A smarter version of this would work directly off the hand's rundexen and setdexen and
-# fill in fragments, rather than relying upon iter_melds with jokers to do the work.  For
-# example if we had iter_value --> {card: contiguous_count} which represents
-# how many contiguous cards are left or right of that card.  This could even be pregenerated
-# by a LUT.
-#
-# For example, if the rundex looked like:
-#    x 2 x x 5 x 7 x x x x Q K x
-# then the iter_value(1) result would look like
-#    0 0 2 2 0 3 0 2 0 0 3 0 0 3
-# for which the higher the score, the more we want that card.
-#
-# iter_value(2) over the following would be:
-#    0 0 4 0 0 0 0 3 2 4 0 0 0 0
-# or something to that effect.
-
-
 def find_useful_cards(h: Hand, objective: Objective, max_extra_jokers=0):
     useful_missing_cards = defaultdict(lambda: defaultdict(int))  # Card -> Distance -> Count
     useful_existing_cards = {card: 0 for card in h if not card.is_joker}
@@ -81,14 +50,12 @@ def find_useful_cards(h: Hand, objective: Objective, max_extra_jokers=0):
     additional_jokers = 0
     jokers_beyond_utility = 0
 
-    # set_iterator = iter_sets_complete if objective.num_sets > 0 else iter_sets_lut
-    set_iterator = iter_sets_lut
-    run_iterator = iter_runs_lut
-
     while (not useful_missing_cards) or (jokers_beyond_utility < max_extra_jokers):
         if useful_missing_cards:
             jokers_beyond_utility += 1
-        for meld in iter_melds(h, objective, run_iterator=run_iterator, set_iterator=set_iterator):
+        for meld in iter_melds(
+            h, objective, run_iterator=iter_runs_lut, set_iterator=iter_sets_lut
+        ):
             for combo in meld:
                 for card in combo:
                     if card.is_joker:

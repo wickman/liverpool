@@ -61,6 +61,11 @@ class Hand:
     def __hash__(self) -> int:
         return hash(bytes(self.cards))
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Hand):
+            return NotImplemented
+        return self.cards == other.cards
+
     def __contains__(self, card: Card) -> bool:
         return self.cards[card.value] > 0
 

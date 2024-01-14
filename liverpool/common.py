@@ -288,7 +288,11 @@ class Extend:
         return run_str
 
     def __repr__(self):
-        return "Extend(%r, %r)" % (self.left, self.right)
+        # return "Extend(%r, %r)" % (self.left, self.right)
+        return str(self)
+
+    def __bool__(self) -> bool:
+        return bool(self.left or self.right)
 
 
 # TODO Runs and Sets are now just bytes() and can inherit a base class
@@ -299,7 +303,7 @@ class Extend:
 #   __iter__
 #   .score
 #   __str__
-    
+
 
 class Combo:
     """A combo of cards."""
@@ -312,8 +316,8 @@ class Combo:
     def __init__(self, cards: Iterable[Card]) -> None:
         if not isinstance(cards, (tuple, list)):
             raise TypeError("Expected cards to be a tuple/list of cards.")
-        #Rely on AttributeError instead here instead of an expensive check.
-        #if not all(isinstance(card, Card) for card in cards):
+        # Rely on AttributeError instead here instead of an expensive check.
+        # if not all(isinstance(card, Card) for card in cards):
         #    raise TypeError("Expected cards to be a tuple/list of cards.")
         self.cards = bytes(card.value for card in cards)
 
@@ -350,7 +354,6 @@ class Combo:
             self.__class__.__name__,
             ", ".join(map(repr, self)),
         )
-
 
 
 class Run(Combo):
@@ -444,6 +447,9 @@ class Add(list):
     def __str__(self):
         return " ".join("%s" % card for card in self)
 
+    def __repr__(self):
+        return str(self)
+
 
 class Set(Combo):
     class InvalidExtend(Combo.Error):
@@ -532,15 +538,36 @@ class MeldUpdate:
         for extend in self.extends.values():
             yield from extend
 
+    def __repr__(self):
+        return "MeldUpdate(%s%s%s)" % (
+            "adds=%r" % self.adds if self.adds else "",
+            ", " if self.adds and self.extends else "",
+            "extends=%r" % self.extends if self.extends else "",
+        )
+
 
 class Meld:
     """A collection of sets and runs."""
+
+    @classmethod
+    def of(cls, combos: Iterable[Combo]) -> "Meld":
+        sets = []
+        runs = []
+        for combo in combos:
+            if isinstance(combo, Set):
+                sets.append(combo)
+            elif isinstance(combo, Run):
+                runs.append(combo)
+            else:
+                raise TypeError("Expected combo to be a Set or Run, got %s" % type(combo))
+        return cls(sorted(sets), sorted(runs))
 
     def __init__(
         self, sets: Optional[Iterable[Set]] = None, runs: Optional[Iterable[Run]] = None
     ) -> None:
         self.sets = tuple(sets) if sets is not None else ()
         self.runs = tuple(runs) if runs is not None else ()
+        self._cards = bytes(b"".join(combo.cards for combo in self))
         if not all(isinstance(set_, Set) for set_ in self.sets):
             raise TypeError("sets must be instances of Set.")
         if not all(isinstance(run, Run) for run in self.runs):
@@ -562,10 +589,15 @@ class Meld:
     def __eq__(self, other):
         if not isinstance(other, Meld):
             return False
-        return self._as_tuple() == other._as_tuple()
+        return self._cards == other._cards
+
+    def __lt__(self, other):
+        if not isinstance(other, Meld):
+            raise TypeError("Expected other to be a Meld, got %s" % type(other))
+        return self._cards < other._cards
 
     def __len__(self):
-        return sum(len(list(s)) for s in self.sets) + sum(len(list(r)) for r in self.runs)
+        return len(self._cards)
 
     def __str__(self):
         return "Meld(%s)" % "   ".join("%s" % combo for combo in (self.sets + self.runs))

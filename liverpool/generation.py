@@ -21,7 +21,7 @@ import json
 import os
 import time
 
-from typing import Iterable, Optional, List, Dict
+from typing import Iterable, Optional, List, Dict, Callable, Union, Tuple
 
 from .combinatorics import (
     sort_uniq,
@@ -35,6 +35,7 @@ from .common import (
     Rank,
     Run,
     Set,
+    Combo,
     Add,
     Extend,
     MeldUpdate,
@@ -101,7 +102,7 @@ class Setdex:
 
 # TODO roll up the rest of the methods into here and put run generation logic here
 class Rundex:
-    __slots__ = ('_array',)
+    __slots__ = ("_array",)
 
     @classmethod
     def from_vector(cls, vector) -> "Rundex":
@@ -113,7 +114,7 @@ class Rundex:
         return rd
 
     def __init__(self) -> None:
-        #self._array = bytearray([0] * (Rank.MAX + 1))
+        # self._array = bytearray([0] * (Rank.MAX + 1))
         self._array = [0] * (Rank.MAX + 1)
 
     def add(self, rank: int) -> None:
@@ -121,11 +122,11 @@ class Rundex:
 
     def remove(self, rank: int) -> None:
         self._array[rank] -= 1
-        #assert self._array[rank] >= 0
+        # assert self._array[rank] >= 0
 
     def __iter__(self) -> Iterable[int]:
-        #array_copy = bytes(self._array)
-        #for rank in range(Rank.MAX + 1):
+        # array_copy = bytes(self._array)
+        # for rank in range(Rank.MAX + 1):
         #    for _ in range(array_copy[rank]):
         #        yield rank
         for rank, count in enumerate(self._array):
@@ -133,7 +134,7 @@ class Rundex:
                 yield rank
 
     def iter_ranks(self) -> Iterable[int]:
-        #for rank, count in enumerate(self._array):
+        # for rank, count in enumerate(self._array):
         #    if count:
         #        yield rank
         for rank, count in enumerate(self._array):
@@ -363,35 +364,36 @@ def iter_sets_lut(hand):
             continue
         for combination in _SET_LUT[min(_SET_LUT_MAX_JOKERS, hand.jokers)][colors.value]:
             yield Set.of(rank, combination)
-            # Change this to the following if we need colorized sets:
-            #    yield from materialized_sets_from_optional_colors(rank, combination)
-            # Otherwise Set.of will always materialize to spades which is fine unless you're
-            # leveraging iter_sets* to search for edits to existing melds.
 
 
-def iter_melds(hand, strategy, set_iterator=iter_sets, run_iterator=iter_runs):
+def _iter_melds_recursive(
+    hand: IndexedHand,
+    iterator_seq: List[Callable[[Hand], Iterable[Combo]]],
+    combo_seq: Optional[List[Combo]] = None,
+) -> Iterable[Meld]:
+    combo_seq = combo_seq or []
+
+    for combo in iterator_seq[0](hand):
+        if take_committed(hand, [combo], commit=True):
+            combo_seq.append(combo)
+            if len(iterator_seq) == 1:
+                yield Meld.of(combo_seq)
+            else:
+                yield from _iter_melds_recursive(hand, iterator_seq[1:], combo_seq)
+            combo_seq.pop()
+            hand.undo()
+
+
+def iter_melds(hand, objective, set_iterator=iter_sets, run_iterator=iter_runs) -> Iterable[Meld]:
     if not isinstance(hand, IndexedHand):
         hand = IndexedHand(cards=list(hand))
-    if strategy.num_runs == 0:
-        for sets in uniq(itertools.combinations(set_iterator(hand), strategy.num_sets)):
-            if take_committed(hand, sets, commit=False):
-                yield Meld(sets, None)
-    elif strategy.num_sets == 0:
-        for runs in uniq(itertools.combinations(run_iterator(hand), strategy.num_runs)):
-            if take_committed(hand, runs, commit=False):
-                yield Meld(None, runs)
-    else:
-        for sets in uniq(itertools.combinations(set_iterator(hand), strategy.num_sets)):
-            if take_committed(hand, sets, commit=True):
-                for runs in uniq(itertools.combinations(run_iterator(hand), strategy.num_runs)):
-                    if take_committed(hand, runs, commit=False):
-                        yield Meld(sets, runs)
-                hand.undo()
 
-
-# TODO Add and Extend should be defined in common and there should be .update methods
-# on Set and Run respectively that takes Set.update(Add) -> Set, and Run.update(Extend) -> Run.
-# Similarly Meld.Update(MeldUpdate) -> Meld.
+    iterator_seq = []
+    for _ in range(objective.num_sets):
+        iterator_seq.append(set_iterator)
+    for _ in range(objective.num_runs):
+        iterator_seq.append(run_iterator)
+    yield from sort_uniq(_iter_melds_recursive(hand, iterator_seq))
 
 
 def iter_adds(hand, set_):
@@ -523,3 +525,78 @@ def iter_updates_multi(
                     )
                     for pid, combos in updates.items()
                 }
+
+
+def _edits_to_meld_update(
+    edits: List[Tuple[int, int, Union[Add, Extend]]]
+) -> Dict[int, MeldUpdate]:
+    updates = {}
+    for pid, combo_id, edit in edits:
+        if pid not in updates:
+            updates[pid] = MeldUpdate(adds={}, extends={})
+        if isinstance(edit, Add):
+            updates[pid].adds[combo_id] = edit
+        elif isinstance(edit, Extend):
+            updates[pid].extends[combo_id] = edit
+        else:
+            raise ValueError("Unknown edit type: %s" % edit.__class__.__name__)
+    return updates
+
+
+def _iter_updates_multi_recursive(
+    hand: IndexedHand,
+    meldable_combos: List[Tuple[int, int, Combo]],
+    edits: List[Tuple[int, int, Union[Add, Extend]]] = None,
+    run_iterator=iter_runs_lut,
+) -> Iterable[Dict[int, MeldUpdate]]:
+    edits = edits or []
+    if not meldable_combos:
+        yield _edits_to_meld_update(edits)
+        return
+
+    pid, combo_id, combo = meldable_combos[0]
+
+    if isinstance(combo, Set):
+        for add in iter_adds(hand, combo):
+            if not add:
+                yield from _iter_updates_multi_recursive(
+                    hand, meldable_combos[1:], edits, run_iterator
+                )
+            else:
+                if take_committed(hand, [add], commit=True):
+                    edits.append((pid, combo_id, add))
+                    yield from _iter_updates_multi_recursive(
+                        hand, meldable_combos[1:], edits, run_iterator
+                    )
+                    edits.pop()
+                    hand.undo()
+    elif isinstance(combo, Run):
+        for extend in iter_extends(hand, combo, run_iterator):
+            if not extend:
+                yield from _iter_updates_multi_recursive(
+                    hand, meldable_combos[1:], edits, run_iterator
+                )
+            else:
+                if take_committed(hand, [extend], commit=True):
+                    edits.append((pid, combo_id, extend))
+                    yield from _iter_updates_multi_recursive(
+                        hand, meldable_combos[1:], edits, run_iterator
+                    )
+                    edits.pop()
+                    hand.undo()
+    else:
+        raise ValueError("Unknown combo type: %s" % combo.__class__.__name__)
+
+
+def iter_updates_multi_recursive(
+    hand: IndexedHand, melds: Dict[int, Meld], run_iterator=iter_runs_lut
+) -> Iterable[Dict[int, MeldUpdate]]:
+    meldable_combos: List[Tuple[int, int, Combo]] = []
+    for pid, meld in melds.items():
+        for set_id, set_ in enumerate(meld.sets):
+            meldable_combos.append((pid, set_id, set_))
+    for pid, meld in melds.items():
+        for run_id, run in enumerate(meld.runs):
+            meldable_combos.append((pid, run_id, run))
+
+    yield from _iter_updates_multi_recursive(hand, meldable_combos, None, run_iterator)

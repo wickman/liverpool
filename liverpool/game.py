@@ -16,9 +16,12 @@ from .generation import (
     iter_sets,
     iter_melds,
     iter_runs,
+    iter_runs_lut,
+    iter_sets_lut,
     iter_extends,
     iter_adds,
     iter_updates_multi,
+    iter_updates_multi_recursive,
 )
 
 
@@ -59,7 +62,6 @@ class Move:
         )
 
 
-
 # Put these scores on the MeldUpdate / Meld classes themselves
 def edit_score(updates: Dict[int, MeldUpdate]) -> int:
     score = 0
@@ -77,18 +79,19 @@ def meld_score(meld: Meld) -> Tuple[int, int]:
 
 
 def generate_move(
-        pid: int,
-        hand: Hand,
-        objective: Objective,
-        melds: Dict[int, Meld],
-        meld_scorer=meld_score,
-        update_scorer=edit_score,) -> List[Move]:
+    pid: int,
+    hand: Hand,
+    objective: Objective,
+    melds: Dict[int, Meld],
+    meld_scorer=meld_score,
+    update_scorer=edit_score,
+) -> List[Move]:
     remaining_cards = Hand(hand)
 
     my_meld = new_meld = None
     if pid not in melds:
         my_melds = sorted(iter_melds(hand, objective), key=meld_score, reverse=True)
- # XXX you are here
+        # XXX you are here
         if len(my_melds) == 0:
             _, useful_existing = self._find_useful_cards()
             return Move(discard=least_useful(useful_existing))
@@ -105,7 +108,9 @@ def generate_move(
     updates = {}
     if my_meld is not None and new_meld is None:
         # iterable of Dict[int, MeldUpdate] (pid -> MeldUpdate)
-        possible_updates = sorted(iter_updates_multi(remaining_cards, melds), key=edit_score)
+        possible_updates = sorted(
+            iter_updates_multi_recursive(remaining_cards, melds), key=edit_score
+        )
         if possible_updates:
             updates = possible_updates.pop()
             for update in updates.values():
@@ -118,7 +123,6 @@ def generate_move(
     if not remaining_cards.empty:
         highest_value_card = max(remaining_cards, key=lambda card: card.score)
     return Move(meld=new_meld, updates=updates, discard=highest_value_card)
-
 
 
 @dataclass
@@ -214,7 +218,6 @@ def document_utility(h, objective, useful_missing_cards, useful_existing_cards, 
         _pp("%s %s" % (c, usefulness))
 
 
-
 class NaivePlayer(Player):
     def __init__(self, *args, super_naive=False, **kw) -> None:
         super().__init__(*args, **kw)
@@ -299,7 +302,9 @@ class NaivePlayer(Player):
         if self.hand not in self._melds:
             self._meld_misses += 1
             self._melds[self.hand] = sorted(
-                iter_melds(self.hand, self.objective), key=meld_score, reverse=True
+                iter_melds(self.hand, self.objective, iter_sets_lut, iter_runs_lut),
+                key=meld_score,
+                reverse=True,
             )
         else:
             self._meld_hits += 1
@@ -329,7 +334,9 @@ class NaivePlayer(Player):
         updates = {}
         if my_meld is not None and new_meld is None:
             # iterable of Dict[int, MeldUpdate] (pid -> MeldUpdate)
-            possible_updates = sorted(iter_updates_multi(remaining_cards, melds), key=edit_score)
+            possible_updates = sorted(
+                iter_updates_multi_recursive(remaining_cards, melds), key=edit_score
+            )
             if possible_updates:
                 updates = possible_updates.pop()
                 for update in updates.values():
@@ -411,8 +418,8 @@ class Trick:
         self.__deck.shuffle()
         self.__discards = []
 
-    def process_action(self, action: Action) -> None:
-        print("  - Processing action: %s" % action)
+    def process_action(self, elapsed: float, action: Action) -> None:
+        print("  - Processing action: %s (%.1fus)" % (action, 1000000 * elapsed))
         actions = sum(
             [
                 action.move is not None,
@@ -459,18 +466,18 @@ class Trick:
             for k in range(len(self.__players)):
                 player = self.__players[cursor % len(self.__players)]
                 action = Action(player.pid, draw_deck=True)
-                self.process_action(action)
+                self.process_action(0.0, action)
                 cursor += 1
         self.__discards.append(self.__deck.pop())
         action = Action(self.__dealer_cursor, flip_discard=self.current_discard)
-        self.process_action(action)
+        self.process_action(0.0, action)
 
     def refresh_deck_if_necessary(self) -> bool:
         if self.deck_size == 0:
             if self.discard_size == 0:
                 return False
             action = Action(Game.GAME_PID, shuffle_discards=True)
-            self.process_action(action)
+            self.process_action(0.0, action)
         return True
 
     def play(self) -> Dict[int, int]:
@@ -490,33 +497,43 @@ class Trick:
                     )
                 )
                 player = self.__players[cursor % len(self.__players)]
+                now = time.time()
                 if player.accepts_discard(self.current_discard, self.melds):
+                    elapsed = time.time() - now
                     action = Action(player.pid, draw_discard=True)
-                    self.process_action(action)
+                    self.process_action(elapsed, action)
                 else:
                     for k in range(cursor + 1, cursor + len(self.__players)):
                         player = self.__players[k % len(self.__players)]
+                        now = time.time()
                         if player.accepts_purchase(self.current_discard, self.melds):
+                            elapsed = time.time() - now
                             action = Action(player.pid, purchase=self.current_discard)
-                            self.process_action(action)
+                            self.process_action(elapsed, action)
                             if not self.refresh_deck_if_necessary():
                                 return self.tabulate()
                             action = Action(player.pid, draw_deck=True)
-                            self.process_action(action)
+                            self.process_action(0.0, action)
                             if not self.refresh_deck_if_necessary():
                                 return self.tabulate()
                             action = Action(player.pid, draw_deck=True)
-                            self.process_action(action)
+                            self.process_action(0.0, action)
                             break
                         else:
-                            print("  - Player %d declines purchase" % player.pid)
+                            elapsed = time.time() - now
+                            print(
+                                "  - Player %d declines purchase (%.1fus)"
+                                % (player.pid, 1000000.0 * elapsed)
+                            )
                     if not self.refresh_deck_if_necessary():
                         return self.tabulate()
                     player = self.__players[cursor % len(self.__players)]
                     action = Action(player.pid, draw_deck=True)
-                    self.process_action(action)
+                    self.process_action(0.0, action)
+                now = time.time()
                 move = player.request_move(self.melds)
-                self.process_action(Action(player.pid, move=move))
+                elapsed = time.time() - now
+                self.process_action(elapsed, Action(player.pid, move=move))
                 cursor += 1
                 if self.is_over():
                     print("Game over!")

@@ -21,25 +21,26 @@ print(IndexedHand(cards=list(h)))
 
 
 print()
-print('Sets:')
+print("Sets:")
 for set_ in iter_sets(h):
-  print(set_)
+    print(set_)
 
 
 print()
-print('Runs:')
+print("Runs:")
 for run in iter_runs(h):
-  print(run)
+    print(run)
 
 
 objective = Objective(1, 1)
 
 
 print()
-print('1/1 Melds:')
+print("1/1 Melds:")
 for lay in iter_melds(h, objective):
-  print(lay)
+    print(lay)
 
 
 import code
+
 code.interact(local=globals())
