@@ -122,6 +122,20 @@ class Rank:
         return range(cls.MIN, cls.MAX + 1)
 
 
+# These are optimizations to attempt to avoid card construction in the Combo path.
+JOKER_MASK = 1 << 6
+
+
+def card_color(value: int) -> Optional[int]:
+    masked_value = value & ~JOKER_MASK
+    return None if masked_value == 0 else masked_value % (Rank.MAX + 1)
+
+
+def card_rank(value: int) -> Optional[int]:
+    masked_value = value & ~JOKER_MASK
+    return None if masked_value == 0 else masked_value // (Rank.MAX + 1)
+
+
 class Card:
     """A card in the game of Liverpool."""
 
@@ -298,8 +312,9 @@ class Combo:
     def __init__(self, cards: Iterable[Card]) -> None:
         if not isinstance(cards, (tuple, list)):
             raise TypeError("Expected cards to be a tuple/list of cards.")
-        if not all(isinstance(card, Card) for card in cards):
-            raise TypeError("Expected cards to be a tuple/list of cards.")
+        #Rely on AttributeError instead here instead of an expensive check.
+        #if not all(isinstance(card, Card) for card in cards):
+        #    raise TypeError("Expected cards to be a tuple/list of cards.")
         self.cards = bytes(card.value for card in cards)
 
     @property
@@ -366,9 +381,9 @@ class Run(Combo):
         super(Run, self).__init__(cards)
         if self.length < self.MIN:
             raise ValueError("Expected at least %d cards, got %d" % (self.MIN, len(cards)))
-        if not all(card.color == self.color for card in self):
+        if not all(card.color == self.color for card in cards):
             raise ValueError("Expected all cards to be the same color.")
-        for index, card in enumerate(self):
+        for index, card in enumerate(cards):
             if card.rank != cards[0].rank + index:
                 raise ValueError("Expected cards to be in ascending order.")
 
@@ -459,7 +474,7 @@ class Set(Combo):
         super(Set, self).__init__(sorted(cards))
         if len(self.cards) < self.MIN:
             raise ValueError("Expected at least %d cards, got %d" % (self.MIN, len(cards)))
-        if not all(card.rank == cards[0].rank for card in self):
+        if not all(card.rank == cards[0].rank for card in cards):
             raise ValueError("Expected all cards to be the same rank.")
 
     @property
