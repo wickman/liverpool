@@ -1,7 +1,11 @@
 from contextlib import contextmanager
 from collections import defaultdict
+import os
+import tempfile
 import time
 import sys
+
+import vmprof.profiler as vp
 
 from liverpool.algorithms import find_useful_cards, find_useful_cards_naive
 from liverpool.common import (
@@ -17,6 +21,7 @@ from liverpool.generation import (
     iter_sets,
     iter_runs,
     maybe_precompute,
+    precompute_luts,
     iter_sets_lut,
     iter_runs_lut,
     IndexedHand,
@@ -29,19 +34,21 @@ ITERS = 1000000
 if len(sys.argv) > 1:
     ITERS = int(sys.argv[1])
 
-
+_MDT = tempfile.mkdtemp()
+print('Dumping to %s' % _MDT)
 
 @contextmanager
-def timed(msg):
-    start = time.time()
-    reported_values = {}
-    yield reported_values
-    end = time.time()
-    print('%-50s %10s (%8s/iter) {%s}' % (
-        msg + ':',
-        '%.1fms' % (1000.0 * (end - start)),
-        '%.1fus' % (1000000.0 * (end - start) / ITERS),
-        ', '.join('%s=%s' % (k, v) for k, v in reported_values.items())))
+def timed(outfile, msg):
+    with vp.ProfilerContext(os.path.join(_MDT, outfile + ".vmprof"), 0.001, memory=False, native=True, real_time=True):
+        start = time.time()
+        reported_values = {}
+        yield reported_values
+        end = time.time()
+        print('%-50s %10s (%8s/iter) {%s}' % (
+            msg + ':',
+            '%.1fms' % (1000.0 * (end - start)),
+            '%.1fus' % (1000000.0 * (end - start) / ITERS),
+            ', '.join('%s=%s' % (k, v) for k, v in reported_values.items())))
 
 
 def generate_combo_set(iterator, num_combos=ITERS, seed=1):
@@ -126,46 +133,48 @@ def generate_useful_cards_naive(objective, num_cards, num_melds=ITERS, seed=1):
 
 maybe_precompute()
 
-with timed('dealing cards'):
+with timed('001.deal.hand', 'dealing cards'):
     deal_cards()
 
-with timed('dealing cards (indexed)'):
+with timed('001.deal.indexedhand', 'dealing cards (indexed)'):
     deal_cards(hand_impl=IndexedHand)
 
-with timed('generating sets') as rv:
+with timed('002.generate_sets', 'generating sets') as rv:
     combos = generate_combos(iter_sets)
     rv['combos'] = combos
 
-with timed('generating sets (lut)') as rv:
+with timed('002.generate_sets_lut', 'generating sets (lut)') as rv:
     combos = generate_combos(iter_sets_lut)
     rv['combos'] = combos
 
-with timed('generating runs') as rv:
+with timed('003.generate_runs', 'generating runs') as rv:
     combos = generate_combos(iter_runs)
     rv['combos'] = combos
 
-with timed('generating runs (lut)') as rv:
+with timed('003.generate_runs_lut', 'generating runs (lut)') as rv:
     combos = generate_combos(iter_runs_lut)
     rv['combos'] = combos
 
 for objective, cards in Game.TRICKS:
-    with timed('generating melds     (%s)' % objective) as rv:
+    with timed('004.generate_melds_%dx%d' % (objective.num_sets, objective.num_runs),
+               'generating melds     (%s)' % objective) as rv:
         combos = generate_melds(objective, cards, iter_runs, iter_sets)
         rv['combos'] = combos
-    with timed('generating melds lut (%s)' % objective) as rv:
+    with timed('004.generate_melds_lut_%dx%d' % (objective.num_sets, objective.num_runs),
+               'generating melds lut (%s)' % objective) as rv:
         combos = generate_melds(objective, cards, iter_runs_lut, iter_sets_lut)
         rv['combos'] = combos
 
-for objective, cards in Game.TRICKS:
-    with timed('generating useful cards       (%s)' % objective) as rv:
-        useful_missing, useful_existing = generate_useful_cards(objective, cards, iter_runs, iter_sets)
-        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
-    with timed('generating useful cards lut   (%s)' % objective) as rv:
-        useful_missing, useful_existing = generate_useful_cards(objective, cards, iter_runs_lut, iter_sets_lut)
-        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
-    with timed('generating useful cards naive (%s)' % objective) as rv:
-        useful_missing, useful_existing = generate_useful_cards_naive(objective, cards)
-        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
+#for objective, cards in Game.TRICKS:
+#    with timed('generating useful cards       (%s)' % objective) as rv:
+#        useful_missing, useful_existing = generate_useful_cards(objective, cards, iter_runs, iter_sets)
+#        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
+#    with timed('generating useful cards lut   (%s)' % objective) as rv:
+#        useful_missing, useful_existing = generate_useful_cards(objective, cards, iter_runs_lut, iter_sets_lut)
+#        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
+#    with timed('generating useful cards naive (%s)' % objective) as rv:
+#        useful_missing, useful_existing = generate_useful_cards_naive(objective, cards)
+#        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
 
 
 sets, _ = generate_combo_set(iter_sets)
@@ -173,26 +182,26 @@ sets_lut, _ = generate_combo_set(iter_sets_lut)
 runs, _ = generate_combo_set(iter_runs)
 runs_lut, _ = generate_combo_set(iter_runs_lut)
 
-with timed('comparing sets') as rv:
+with timed('005.compare_sets', 'comparing sets') as rv:
     rv['equal'] = sets == sets_lut
 
-with timed('comparing runs') as rv:
+with timed('005.compare_runs', 'comparing runs') as rv:
     rv['equal'] = runs == runs_lut
 
 sd = defaultdict(int)
-with timed('hashing sets') as rv:
+with timed('005.hash_sets', 'hashing sets') as rv:
     for s in sets:
         sd[s] += 1
     rv['unique'] = len(sd)
 
 rd = defaultdict(int)
-with timed('hashing runs') as rv:
+with timed('005.hash_runs', 'hashing runs') as rv:
     for r in runs:
         rd[r] += 1
     rv['unique'] = len(rd)
 
-with timed('sorting sets'):
+with timed('005.sort_sets', 'sorting sets'):
     sets.sort()
 
-with timed('sorting runs'):
+with timed('005.sort_runs', 'sorting runs'):
     runs.sort()

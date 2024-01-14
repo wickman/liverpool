@@ -39,6 +39,7 @@ def test_set_simple():
     h1.put_card(Card.joker())
     sets1 = list(iter_sets(h1))
     assert len(sets1) == 5
+
     assert sorted(sets1) == sorted(
         [
             Set.of(2, [Color.DIAMOND, Color.CLUB, Color.SPADE]),

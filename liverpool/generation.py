@@ -64,7 +64,8 @@ class Setdex:
     """
 
     # Index set count.
-    __slots__ = ("value", "count")
+    # __slots__ = ("value", "count")
+    __slots__ = ("value",)
 
     NUM_BITS = 2  # support 0, 1, 2 decks.  NUM_BITS=3 is 0-7 decks. etc
     SET_MASK = (1 << NUM_BITS) - 1
@@ -76,17 +77,17 @@ class Setdex:
 
     def __init__(self, value: int = 0) -> None:
         self.value = value
-        self.count = len(list(self))
+        # self.count = len(list(self))
 
     def append(self, color) -> None:
         """Add a color to the set.  NOT BOUNDS CHECKED."""
         self.value += 1 << (self.NUM_BITS * color)
-        self.count += 1
+        # self.count += 1
 
     def remove(self, color) -> None:
         """Remove a color from the set.  NOT BOUNDS CHECKED."""
         self.value -= 1 << (self.NUM_BITS * color)
-        self.count -= 1
+        # self.count -= 1
 
     def __iter__(self) -> Iterable[int]:
         """List the colors in the set."""
@@ -100,43 +101,49 @@ class Setdex:
 
 # TODO roll up the rest of the methods into here and put run generation logic here
 class Rundex:
+    __slots__ = ('_array',)
+
     @classmethod
     def from_vector(cls, vector) -> "Rundex":
         rd = cls()
         for k in range(Rank.MAX + 1):
-            if k < Rank.MIN:
-                yield 0
-            else:
+            if k >= Rank.MIN:
                 if vector & (1 << (k - Rank.MIN)):
                     rd.add(k)
         return rd
 
     def __init__(self) -> None:
-        self._array = bytearray([0] * (Rank.MAX + 1))
+        #self._array = bytearray([0] * (Rank.MAX + 1))
+        self._array = [0] * (Rank.MAX + 1)
 
     def add(self, rank: int) -> None:
         self._array[rank] += 1
 
     def remove(self, rank: int) -> None:
         self._array[rank] -= 1
-        assert self._array[rank] >= 0
+        #assert self._array[rank] >= 0
 
     def __iter__(self) -> Iterable[int]:
-        array_copy = bytes(self._array)
-        for rank in range(Rank.MAX + 1):
-            for _ in range(array_copy[rank]):
+        #array_copy = bytes(self._array)
+        #for rank in range(Rank.MAX + 1):
+        #    for _ in range(array_copy[rank]):
+        #        yield rank
+        for rank, count in enumerate(self._array):
+            for _ in range(count):
                 yield rank
 
     def iter_ranks(self) -> Iterable[int]:
+        #for rank, count in enumerate(self._array):
+        #    if count:
+        #        yield rank
         for rank, count in enumerate(self._array):
             if count:
                 yield rank
 
     def to_vector(self) -> int:
         value = 0
-        for rank, count in enumerate(self._array):
-            if count:
-                value |= 1 << (rank - Rank.MIN)
+        for rank in self.iter_ranks():
+            value |= 1 << (rank - Rank.MIN)
         return value
 
 
@@ -324,7 +331,6 @@ def iter_runs(hand):
         hand = IndexedHand(cards=list(hand))
     for color, rundex in hand.rundexen.copy().items():  # why is this copied?
         for start, jokers in ranks_from_rundex(rundex, hand.jokers):
-            # print('run: %s, %s, %s' % (color, start, jokers))
             yield Run.of(color, start, jokers)
 
 
@@ -335,7 +341,6 @@ def iter_runs_lut(hand):
     for color, rundex in hand.rundexen.copy().items():  # why is this copied?
         vector = rundex.to_vector()
         for start, jokers in _RUN_LUT[min(hand.jokers, _RUN_LUT_MAX_JOKERS)][vector]:
-            # print('run: %s, %s, %s' % (color, start, jokers))
             yield Run.of(color, start, jokers)
 
 
@@ -345,7 +350,7 @@ def iter_sets(hand):
     for rank, colors in enumerate(hand.setdexen):
         if rank < 2:
             continue
-        for combination in sets_from_colors(colors, min(_SET_LUT_MAX_JOKERS, hand.jokers)):
+        for combination in sets_from_colors(colors, hand.jokers):
             yield Set.of(rank, combination)
 
 

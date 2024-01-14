@@ -85,5 +85,32 @@ hashing runs:                               388.2ms (  0.4us/iter) {unique=3996}
 sorting sets:                              1603.9ms (  1.6us/iter) {}
 sorting runs:                              1842.1ms (  1.8us/iter) {}
 
-Simplified find_useful_cards and iter_melds
+Current timing at head, so something regressed:
+
+dealing cards:                                       4966.8ms (   5.0us/iter) {}
+dealing cards (indexed):                             8675.6ms (   8.7us/iter) {}
+generating sets:                                    16285.1ms (  16.3us/iter) {combos=1727937}
+generating sets (lut):                              11119.9ms (  11.1us/iter) {combos=1727937}
+generating runs:                                    33895.6ms (  33.9us/iter) {combos=514125}
+generating runs (lut):                              10255.7ms (  10.3us/iter) {combos=514125}
+generating melds     (2 sets / 0 runs):             21270.5ms (  21.3us/iter) {combos=258398}
+generating melds lut (2 sets / 0 runs):             15491.2ms (  15.5us/iter) {combos=258398}
+generating melds     (1 sets / 1 runs):             27315.3ms (  27.3us/iter) {combos=63279}
+generating melds lut (1 sets / 1 runs):             15596.5ms (  15.6us/iter) {combos=63279}
+generating melds     (0 sets / 2 runs):             33231.6ms (  33.2us/iter) {combos=2022}
+generating melds lut (0 sets / 2 runs):             12170.6ms (  12.2us/iter) {combos=2022}
+generating melds     (3 sets / 0 runs):             30915.8ms (  30.9us/iter) {combos=2523}
+generating melds lut (3 sets / 0 runs):             25401.9ms (  25.4us/iter) {combos=2523}
+generating melds     (2 sets / 1 runs):             29598.0ms (  29.6us/iter) {combos=12590}
+generating melds lut (2 sets / 1 runs):             21925.6ms (  21.9us/iter) {combos=12590}
+generating melds     (1 sets / 2 runs):             46228.2ms (  46.2us/iter) {combos=453}
+generating melds lut (1 sets / 2 runs):             18794.2ms (  18.8us/iter) {combos=453}
+generating melds     (0 sets / 3 runs):            144067.7ms ( 144.1us/iter) {combos=0}
+generating melds lut (0 sets / 3 runs):             92522.5ms (  92.5us/iter) {combos=0}
+comparing sets:                                       168.1ms (   0.2us/iter) {equal=True}
+comparing runs:                                       301.5ms (   0.3us/iter) {equal=True}
+hashing sets:                                         359.7ms (   0.4us/iter) {unique=2222}
+hashing runs:                                         512.0ms (   0.5us/iter) {unique=3996}
+sorting sets:                                        1663.8ms (   1.7us/iter) {}
+sorting runs:                                        2394.5ms (   2.4us/iter) {}
 

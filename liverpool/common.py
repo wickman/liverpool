@@ -277,16 +277,72 @@ class Extend:
         return "Extend(%r, %r)" % (self.left, self.right)
 
 
-class Run:
-    """A run of cards of the same color."""
+# TODO Runs and Sets are now just bytes() and can inherit a base class
+# which would include the following methods:
+#   .length, __len__
+#   __hash__
+#   __lt__ __gt__ __eq__
+#   __iter__
+#   .score
+#   __str__
+    
+
+class Combo:
+    """A combo of cards."""
 
     class Error(Exception):
         pass
 
-    class InvalidExtend(Exception):
-        pass
-
     __slots__ = ("cards",)
+
+    def __init__(self, cards: Iterable[Card]) -> None:
+        if not isinstance(cards, (tuple, list)):
+            raise TypeError("Expected cards to be a tuple/list of cards.")
+        if not all(isinstance(card, Card) for card in cards):
+            raise TypeError("Expected cards to be a tuple/list of cards.")
+        self.cards = bytes(card.value for card in cards)
+
+    @property
+    def score(self) -> int:
+        return sum(Card(value).score for value in self.cards)
+
+    @property
+    def length(self) -> int:
+        return len(self.cards)
+
+    def __len__(self) -> int:
+        return self.length
+
+    def __hash__(self) -> int:
+        return hash(self.cards)
+
+    def __lt__(self, other) -> bool:
+        return self.cards < other.cards
+
+    def __eq__(self, other) -> bool:
+        return self.cards == other.cards
+
+    def __iter__(self) -> Iterable[Card]:
+        """Iterate over the cards in the run."""
+        for value in self.cards:
+            yield Card(value)
+
+    def __str__(self) -> str:
+        return " ".join("%s" % card for card in self)
+
+    def __repr__(self):
+        return "%s([%s])" % (
+            self.__class__.__name__,
+            ", ".join(map(repr, self)),
+        )
+
+
+
+class Run(Combo):
+    """A run of cards of the same color."""
+
+    class InvalidExtend(Combo.Error):
+        pass
 
     MIN = 4
 
@@ -307,26 +363,18 @@ class Run:
         return cls(cards)
 
     def __init__(self, cards: Iterable[Card]) -> None:
-        if not isinstance(cards, (tuple, list)):
-            raise TypeError("Expected cards to be a tuple/list of cards.")
-        if len(cards) < self.MIN:
+        super(Run, self).__init__(cards)
+        if self.length < self.MIN:
             raise ValueError("Expected at least %d cards, got %d" % (self.MIN, len(cards)))
-        if not all(isinstance(card, Card) for card in cards):
-            raise TypeError("Expected cards to be a tuple/list of cards.")
-        if not all(card.color == cards[0].color for card in cards):
+        if not all(card.color == self.color for card in self):
             raise ValueError("Expected all cards to be the same color.")
-        for index, card in enumerate(cards):
+        for index, card in enumerate(self):
             if card.rank != cards[0].rank + index:
                 raise ValueError("Expected cards to be in ascending order.")
-        self.cards = bytes(card.value for card in cards)
 
     @property
     def color(self) -> int:
         return Card(self.cards[0]).color
-
-    @property
-    def length(self) -> int:
-        return len(self.cards)
 
     @property
     def left(self) -> Card:
@@ -362,27 +410,6 @@ class Run:
             raise TypeError("Expected extend to be an Extend, got %s" % type(extend))
         return Run(extend.left + list(self) + extend.right)
 
-    def __len__(self):
-        return self.length
-
-    def __hash__(self):
-        return hash(self.cards)
-
-    def __lt__(self, other):
-        if not isinstance(other, Run):
-            raise TypeError("Expected other to be a Run, got %s" % type(other))
-        return self.cards < other.cards
-
-    def __eq__(self, other):
-        if not isinstance(other, Run):
-            return False
-        return self.cards == other.cards
-
-    def __iter__(self) -> Iterable[Card]:
-        """Iterate over the cards in the run."""
-        for value in self.cards:
-            yield Card(value)
-
     def iter_left(self) -> Iterable[Card]:
         """Iterate, descending, over the cards to the left of the run."""
         if self.next_left:
@@ -395,15 +422,6 @@ class Run:
             for rank in range(self.next_right.rank, Rank.MAX + 1):
                 yield Card.of(rank, self.color)
 
-    def __str__(self):
-        return " ".join("%s" % card for card in self)
-
-    def __repr__(self):
-        return "%s.from_cards(%s)" % (
-            self.__class__.__name__,
-            ", ".join(map(repr, self)),
-        )
-
 
 class Add(list):
     """A list of cards that can be added to a set."""
@@ -412,13 +430,8 @@ class Add(list):
         return " ".join("%s" % card for card in self)
 
 
-class Set:
-    __slots__ = ("cards",)
-
-    class Error(Exception):
-        pass
-
-    class InvalidExtend(Exception):
+class Set(Combo):
+    class InvalidExtend(Combo.Error):
         pass
 
     MIN = 3
@@ -443,15 +456,11 @@ class Set:
         return cls(cards)
 
     def __init__(self, cards: Iterable[Card]) -> None:
-        if not isinstance(cards, (tuple, list)):
-            raise TypeError("Expected cards to be a tuple/list of cards.")
-        if not all(isinstance(card, Card) for card in cards):
-            raise TypeError("Expected cards to be a tuple/list of cards.")
-        if len(cards) < self.MIN:
+        super(Set, self).__init__(sorted(cards))
+        if len(self.cards) < self.MIN:
             raise ValueError("Expected at least %d cards, got %d" % (self.MIN, len(cards)))
-        if not all(card.rank == cards[0].rank for card in cards):
+        if not all(card.rank == cards[0].rank for card in self):
             raise ValueError("Expected all cards to be the same rank.")
-        self.cards = bytes(sorted(card.value for card in cards))
 
     @property
     def rank(self) -> int:
@@ -472,36 +481,6 @@ class Set:
         if not all(card.rank == self.rank for card in add):
             raise ValueError("Expected all cards to be the same rank.")
         return Set(tuple(Card(value) for value in self.cards) + tuple(add))
-
-    @property
-    def length(self) -> int:
-        return len(self.cards)
-
-    def __len__(self):
-        return self.length
-
-    def __hash__(self):
-        return hash(self.cards)
-
-    def __lt__(self, other):
-        if not isinstance(other, Set):
-            raise TypeError("Expected other to be a Set, got %s" % type(other))
-        return self.cards < other.cards
-
-    def __eq__(self, other):
-        if not isinstance(other, Set):
-            return False
-        return self.cards == other.cards
-
-    def __iter__(self):
-        for value in self.cards:
-            yield Card(value)
-
-    def __str__(self):
-        return " ".join("%s" % card for card in self)
-
-    def __repr__(self):
-        return "%s((%s))" % (self.__class__.__name__, ", ".join(map(repr, self)))
 
 
 class CardSet(list):
@@ -551,6 +530,10 @@ class Meld:
             raise TypeError("sets must be instances of Set.")
         if not all(isinstance(run, Run) for run in self.runs):
             raise TypeError("runs must be instances of Run.")
+
+    @property
+    def score(self) -> int:
+        return sum(card.score for combo in self for card in combo)
 
     def _as_tuple(self):
         return tuple(self.sets + self.runs)

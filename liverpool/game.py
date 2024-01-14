@@ -59,6 +59,68 @@ class Move:
         )
 
 
+
+# Put these scores on the MeldUpdate / Meld classes themselves
+def edit_score(updates: Dict[int, MeldUpdate]) -> int:
+    score = 0
+    for update in updates.values():
+        if update.adds is not None:
+            score += sum(card.score for add in update.adds.values() for card in add)
+        if update.extends is not None:
+            score += sum(card.score for extend in update.extends.values() for card in extend)
+    return score
+
+
+def meld_score(meld: Meld) -> Tuple[int, int]:
+    meld_cards = [card for combo in meld for card in combo]
+    return sum(card.score for card in meld_cards), len(meld_cards)
+
+
+def generate_move(
+        pid: int,
+        hand: Hand,
+        objective: Objective,
+        melds: Dict[int, Meld],
+        meld_scorer=meld_score,
+        update_scorer=edit_score,) -> List[Move]:
+    remaining_cards = Hand(hand)
+
+    my_meld = new_meld = None
+    if pid not in melds:
+        my_melds = sorted(iter_melds(hand, objective), key=meld_score, reverse=True)
+ # XXX you are here
+        if len(my_melds) == 0:
+            _, useful_existing = self._find_useful_cards()
+            return Move(discard=least_useful(useful_existing))
+        else:
+            for meld in my_melds:
+                print("  - Considering meld %s (score=%s)" % (meld, meld_score(meld)))
+        new_meld = melds[self.pid] = my_melds.pop(0)
+        for combo in new_meld:
+            for card in combo:
+                remaining_cards.take_card(card.dematerialized())
+    else:
+        my_meld = melds[self.pid]
+
+    updates = {}
+    if my_meld is not None and new_meld is None:
+        # iterable of Dict[int, MeldUpdate] (pid -> MeldUpdate)
+        possible_updates = sorted(iter_updates_multi(remaining_cards, melds), key=edit_score)
+        if possible_updates:
+            updates = possible_updates.pop()
+            for update in updates.values():
+                for card in update:
+                    remaining_cards.take_card(card.dematerialized())
+
+    # need to find the card least likely to be useful for future edits...so not just against our own
+    # hand but against all other melds.  leave this as a TODO and just discard the most valuable card
+    highest_value_card = None
+    if not remaining_cards.empty:
+        highest_value_card = max(remaining_cards, key=lambda card: card.score)
+    return Move(meld=new_meld, updates=updates, discard=highest_value_card)
+
+
+
 @dataclass
 class Action:
     player_id: int
@@ -151,21 +213,6 @@ def document_utility(h, objective, useful_missing_cards, useful_existing_cards, 
     for c, usefulness in sorted(useful_existing_cards.items(), key=existing_utility, reverse=True):
         _pp("%s %s" % (c, usefulness))
 
-
-# Put these scores on the MeldUpdate / Meld classes themselves
-def edit_score(updates: Dict[int, MeldUpdate]) -> int:
-    score = 0
-    for update in updates.values():
-        if update.adds is not None:
-            score += sum(card.score for add in update.adds.values() for card in add)
-        if update.extends is not None:
-            score += sum(card.score for extend in update.extends.values() for card in extend)
-    return score
-
-
-def meld_score(meld: Meld) -> Tuple[int, int]:
-    meld_cards = [card for combo in meld for card in combo]
-    return sum(card.score for card in meld_cards), len(meld_cards)
 
 
 class NaivePlayer(Player):
