@@ -483,50 +483,6 @@ def iter_updates(hand, meld, run_iterator=iter_runs) -> Iterable[MeldUpdate]:
                 )
 
 
-def iter_updates_multi(
-    hand, melds: Dict[int, Meld], run_iterator=iter_runs
-) -> Iterable[Dict[int, MeldUpdate]]:
-    adds = []
-    extends = []
-    for pid, meld in melds.items():
-        for set_id, set_ in enumerate(meld.sets):
-            adds.extend((pid, set_id, add_) for add_ in iter_adds(hand, set_) if len(add_) > 0)
-        for run_id, run in enumerate(meld.runs):
-            extends.extend(
-                (pid, run_id, extend)
-                for extend in iter_extends(hand, run, run_iterator)
-                if len(extend) > 0
-            )
-
-    mutations = adds + extends
-
-    print("mutation candidates (iter_updates_multi):")
-    for pid, mid, mutation in mutations:
-        print("   - %d -> %d += %s" % (pid, mid, mutation))
-    for size in range(len(mutations) + 1):
-        for combination in itertools.combinations(mutations, size):
-            combos_only = [combo for pid, combo_id, combo in combination]
-            if take_committed(hand, combos_only, commit=False):
-                updates = defaultdict(dict)
-                for pid, combo_id, combo in combination:
-                    updates[pid][combo_id] = combo
-                yield {
-                    pid: MeldUpdate(
-                        adds={
-                            combo_id: combo
-                            for combo_id, combo in combos.items()
-                            if isinstance(combo, Add)
-                        },
-                        extends={
-                            combo_id: combo
-                            for combo_id, combo in combos.items()
-                            if isinstance(combo, Extend)
-                        },
-                    )
-                    for pid, combos in updates.items()
-                }
-
-
 def _edits_to_meld_update(
     edits: List[Tuple[int, int, Union[Add, Extend]]]
 ) -> Dict[int, MeldUpdate]:
@@ -588,7 +544,7 @@ def _iter_updates_multi_recursive(
         raise ValueError("Unknown combo type: %s" % combo.__class__.__name__)
 
 
-def iter_updates_multi_recursive(
+def iter_updates_multi(
     hand: IndexedHand, melds: Dict[int, Meld], run_iterator=iter_runs_lut
 ) -> Iterable[Dict[int, MeldUpdate]]:
     meldable_combos: List[Tuple[int, int, Combo]] = []

@@ -6,6 +6,15 @@ import sys
 from typing import Iterable, List, Optional, Union, Tuple, Dict
 
 
+class Serializable:
+    def serialize(self) -> str:
+        raise NotImplementedError
+
+    @classmethod
+    def deserialize(cls, s: str):
+        raise NotImplementedError
+
+
 class Color:
     """Color of a card."""
 
@@ -25,6 +34,13 @@ class Color:
         SPADE: "SPADE",
         HEART: "HEART",
         DIAMOND: "DIAMOND",
+    }
+
+    POKER_COLORS = {
+        CLUB: "c",
+        SPADE: "s",
+        HEART: "h",
+        DIAMOND: "d",
     }
 
     WHITE_UNICODE_COLORS = {
@@ -98,6 +114,25 @@ class Rank:
     KING = 13
     ACE = MAX = 14
 
+    RANK_TO_POKER = {
+        2: "2",
+        3: "3",
+        4: "4",
+        5: "5",
+        6: "6",
+        7: "7",
+        8: "8",
+        9: "9",
+        10: "T",
+        JACK: "J",
+        QUEEN: "Q",
+        KING: "K",
+        ACE: "A",
+        None: "?",
+    }
+
+    POKER_TO_RANK = {v: k for k, v in RANK_TO_POKER.items()}
+
     @classmethod
     def validate(cls, rank) -> int:
         if rank < cls.MIN or rank > cls.MAX:
@@ -161,6 +196,10 @@ class Card:
     MAX = Rank.MAX + Color.MAX * (Rank.MAX + 1)
     _JOKER_MASK = 1 << 6
     JOKER_VALUE = _JOKER_MASK
+
+    @classmethod
+    def deserialize(cls, s: str) -> "Card":
+        pass
 
     @classmethod
     def joker(cls) -> "Card":

@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from .common import CardSet, Card, Rank, Objective, Color, Set
+from .common import Card, Rank, Objective, Color, Set
 from .hand import Hand
 from .generation import (
     iter_melds,
@@ -42,6 +42,10 @@ def existing_utility(kv):
     return (-count, CARD_SCORES[rank])
 
 
+def least_useful(cards: Dict[Card, int]) -> Card:
+    return sorted(cards.items(), key=existing_utility, reverse=True).pop(0)[0]
+
+
 def find_useful_cards(h: Hand, objective: Objective, max_extra_jokers=0):
     useful_missing_cards = defaultdict(lambda: defaultdict(int))  # Card -> Distance -> Count
     useful_existing_cards = {card: 0 for card in h if not card.is_joker}
@@ -76,38 +80,29 @@ def find_useful_cards(h: Hand, objective: Objective, max_extra_jokers=0):
     return useful_missing_cards, useful_existing_cards
 
 
-def find_useful_cards_naive(h: Hand, objective: Objective):
-    useful_missing_cards = defaultdict(lambda: defaultdict(int))  # Card -> Distance -> Count
-    useful_existing_cards = {card: 0 for card in h if not card.is_joker}
-    h = IndexedHand(cards=h)  # make a copy
+def document_utility(h, objective, useful_missing_cards, useful_existing_cards, indent=4):
+    def _p(s):
+        print(" " * indent + str(s))
 
-    # useful_set_cards should be quite easy to compute.  iterate over setdexen, then we say
-    #  if setdexen[rank] < 3:
-    #    useful_missing_cards[Card.of(rank, *)] = 3 - setdexen[rank]
-    #    useful_existing_cards[<every card of rank 'rank' in hand>] = 1
-    if objective.num_sets:
-        for rank, sd in enumerate(h.setdexen):
-            if rank < 2:
-                continue
-            if sd.count == 0:
-                continue
-            for color in Color.iter():
-                card = Card.of(rank, color)
-                if card in h:
-                    useful_existing_cards[card] += sd.count
-                useful_missing_cards[card][3 - sd.count] += 1
-    if objective.num_runs:
-        for jokers in range(4):
-            for color, rundex in h.rundexen.items():
-                for start, joker_vec in _RUN_LUT[jokers][rundex.to_vector()]:
-                    for index, has_joker in enumerate(joker_vec):
-                        if has_joker:
-                            useful_missing_cards[Card.of(start + index, color)][jokers] += 1
-                        else:
-                            useful_existing_cards[Card.of(start + index, color)] += 1
+    def _pp(s):
+        print(" " * (indent + 4) + str(s))
 
-    return useful_missing_cards, useful_existing_cards
+    _p("----sets-----")
+    for s in iter_sets_lut(h):
+        _pp(s)
 
+    _p("----runs-----")
+    for r in iter_runs_lut(h):
+        _pp(r)
 
-def least_useful(cards: Dict[Card, int]) -> Card:
-    return sorted(cards.items(), key=existing_utility, reverse=True).pop(0)[0]
+    _p("----melds-----")
+    for m in iter_melds(h, objective):
+        _pp(m)
+
+    _p("----useful missing cards-----")
+    for c, usefulness in sorted(useful_missing_cards.items(), key=missing_utility):
+        _pp("%s %s" % (c, dict(usefulness)))
+
+    _p("----useless hand cards-----")
+    for c, usefulness in sorted(useful_existing_cards.items(), key=existing_utility, reverse=True):
+        _pp("%s %s" % (c, usefulness))

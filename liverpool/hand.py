@@ -59,7 +59,7 @@ class Hand:
         return sum(self.cards) == 0
 
     def __hash__(self) -> int:
-        assert self.taken == [None], 'Expected taken to be empty but got %s' % self.taken
+        assert self.taken == [None], "Expected taken to be empty but got %s" % self.taken
         return hash(bytes(self.cards))
 
     def __eq__(self, other) -> bool:
