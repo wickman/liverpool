@@ -1,4 +1,11 @@
-A contract rummy implementation in Python.
+A fairly performant contract rummy implementation in Python.
+
+The performance is good enough to play an entire 7 trick contract rummy game
+between 4 naive-but-better-than-many-humans-strength players in under a
+second on a reasonably powerful laptop.  The goal is to generate enough
+self-play games to train a modern imperfect information algorithm e.g.
+[Student of Games](https://arxiv.org/abs/2112.03178).
+
 
 ```python
 >>>> from liverpool.common import Card, Color, Rank, Objective
