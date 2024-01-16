@@ -40,11 +40,11 @@ objective = Objective(1, 2)
 
 for _ in range(10):
     if hand not in melds:
-      print('Hand not in cache (hash(hand) == %d)' % hash(hand))
-      melds[hand] = sorted(iter_melds(hand, objective), key=meld_score, reverse=True)
-      for meld in melds[hand]:
-        print('  - %s' % meld)
+        print("Hand not in cache (hash(hand) == %d)" % hash(hand))
+        melds[hand] = sorted(iter_melds(hand, objective), key=meld_score, reverse=True)
+        for meld in melds[hand]:
+            print("  - %s" % meld)
     else:
-      print('Hand in cache (hash(hand) == %d)' % hash(hand))
-      for meld in melds[hand]:
-        print('  - %s' % meld)    
+        print("Hand in cache (hash(hand) == %d)" % hash(hand))
+        for meld in melds[hand]:
+            print("  - %s" % meld)
