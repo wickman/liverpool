@@ -93,5 +93,6 @@ current ELOs: 0=1804.6 1=1195.4
 
 # Play 100 games between two equally matched naive players, where we expect
 # ELO to break even to the average ~1500:
-=; current ELOs: 1=1495.5 0=1504.5
+=; pypy liverpool/bin/play.py -L elo play 100 0=naive 1=naive | grep -i ELOs | tail -1
+current ELOs: 1=1495.5 0=1504.5
 ```
