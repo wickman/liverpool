@@ -26,7 +26,7 @@ def meld_score(meld: Meld) -> Tuple[int, int]:
 class NaivePlayer(Player):
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
-        self._melds = {}
+        self._melds: Dict[int, Meld] = {}
         self._useful_missing, self._useful_existing = None, None
 
     def set_objective(self, objective: Objective) -> None:

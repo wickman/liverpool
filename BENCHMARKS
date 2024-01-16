@@ -27,35 +27,6 @@ hashing runs:                              2911.1ms (  2.9us/iter) {unique=3996}
 sorting sets:                              6986.0ms (  7.0us/iter) {}
 sorting runs:                              7924.3ms (  7.9us/iter) {}
 
-Run-bytes / Set-normal
-
-dealing cards:                             4988.6ms (  5.0us/iter) {}
-dealing cards (indexed):                   5318.5ms (  5.3us/iter) {}
-generating sets:                          12608.8ms ( 12.6us/iter) {combos=1727937}
-generating sets (lut):                     7318.5ms (  7.3us/iter) {combos=1727937}
-generating runs:                          26670.2ms ( 26.7us/iter) {combos=514125}
-generating runs (lut):                     6565.0ms (  6.6us/iter) {combos=514125}
-generating melds     (2 sets / 0 runs):   18280.1ms ( 18.3us/iter) {combos=258459}
-generating melds lut (2 sets / 0 runs):   12725.2ms ( 12.7us/iter) {combos=258459}
-generating melds     (1 sets / 1 runs):   19633.1ms ( 19.6us/iter) {combos=63279}
-generating melds lut (1 sets / 1 runs):   10154.0ms ( 10.2us/iter) {combos=63279}
-generating melds     (0 sets / 2 runs):   28801.2ms ( 28.8us/iter) {combos=2022}
-generating melds lut (0 sets / 2 runs):    8745.4ms (  8.7us/iter) {combos=2022}
-generating melds     (3 sets / 0 runs):   38440.0ms ( 38.4us/iter) {combos=2525}
-generating melds lut (3 sets / 0 runs):   33415.5ms ( 33.4us/iter) {combos=2525}
-generating melds     (2 sets / 1 runs):   21310.3ms ( 21.3us/iter) {combos=194}
-generating melds lut (2 sets / 1 runs):   15885.9ms ( 15.9us/iter) {combos=194}
-generating melds     (1 sets / 2 runs):   18504.2ms ( 18.5us/iter) {combos=0}
-generating melds lut (1 sets / 2 runs):   10175.1ms ( 10.2us/iter) {combos=0}
-generating melds     (0 sets / 3 runs):   42533.3ms ( 42.5us/iter) {combos=0}
-generating melds lut (0 sets / 3 runs):   23592.7ms ( 23.6us/iter) {combos=0}
-comparing sets:                             582.7ms (  0.6us/iter) {equal=True}
-comparing runs:                             170.5ms (  0.2us/iter) {equal=True}
-hashing sets:                              1675.7ms (  1.7us/iter) {unique=2222}
-hashing runs:                               390.8ms (  0.4us/iter) {unique=3996}
-sorting sets:                              6545.6ms (  6.5us/iter) {}
-sorting runs:                              1837.8ms (  1.8us/iter) {}
-
 Run-bytes / Set-bytes
 
 dealing cards:                             4999.7ms (  5.0us/iter) {}
@@ -85,32 +56,50 @@ hashing runs:                               388.2ms (  0.4us/iter) {unique=3996}
 sorting sets:                              1603.9ms (  1.6us/iter) {}
 sorting runs:                              1842.1ms (  1.8us/iter) {}
 
-Current timing at head, so something regressed:
+Current timing at head, with more efficient recursive meld generator for complex/high card melds.
+(Using vmprof, so about 5-10% slower than a typical run.)
 
-dealing cards:                                       4966.8ms (   5.0us/iter) {}
-dealing cards (indexed):                             8675.6ms (   8.7us/iter) {}
-generating sets:                                    16285.1ms (  16.3us/iter) {combos=1727937}
-generating sets (lut):                              11119.9ms (  11.1us/iter) {combos=1727937}
-generating runs:                                    33895.6ms (  33.9us/iter) {combos=514125}
-generating runs (lut):                              10255.7ms (  10.3us/iter) {combos=514125}
-generating melds     (2 sets / 0 runs):             21270.5ms (  21.3us/iter) {combos=258398}
-generating melds lut (2 sets / 0 runs):             15491.2ms (  15.5us/iter) {combos=258398}
-generating melds     (1 sets / 1 runs):             27315.3ms (  27.3us/iter) {combos=63279}
-generating melds lut (1 sets / 1 runs):             15596.5ms (  15.6us/iter) {combos=63279}
-generating melds     (0 sets / 2 runs):             33231.6ms (  33.2us/iter) {combos=2022}
-generating melds lut (0 sets / 2 runs):             12170.6ms (  12.2us/iter) {combos=2022}
-generating melds     (3 sets / 0 runs):             30915.8ms (  30.9us/iter) {combos=2523}
-generating melds lut (3 sets / 0 runs):             25401.9ms (  25.4us/iter) {combos=2523}
-generating melds     (2 sets / 1 runs):             29598.0ms (  29.6us/iter) {combos=12590}
-generating melds lut (2 sets / 1 runs):             21925.6ms (  21.9us/iter) {combos=12590}
-generating melds     (1 sets / 2 runs):             46228.2ms (  46.2us/iter) {combos=453}
-generating melds lut (1 sets / 2 runs):             18794.2ms (  18.8us/iter) {combos=453}
-generating melds     (0 sets / 3 runs):            144067.7ms ( 144.1us/iter) {combos=0}
-generating melds lut (0 sets / 3 runs):             92522.5ms (  92.5us/iter) {combos=0}
-comparing sets:                                       168.1ms (   0.2us/iter) {equal=True}
-comparing runs:                                       301.5ms (   0.3us/iter) {equal=True}
-hashing sets:                                         359.7ms (   0.4us/iter) {unique=2222}
-hashing runs:                                         512.0ms (   0.5us/iter) {unique=3996}
-sorting sets:                                        1663.8ms (   1.7us/iter) {}
-sorting runs:                                        2394.5ms (   2.4us/iter) {}
-
+dealing cards:                                      4796.7ms (   4.8us/iter) {}
+dealing cards (indexed):                            5136.4ms (   5.1us/iter) {}
+generating sets:                                   12332.5ms (  12.3us/iter) {combos=1728810}
+generating sets (lut):                              6986.4ms (   7.0us/iter) {combos=1727937}
+generating runs:                                   29066.7ms (  29.1us/iter) {combos=514125}
+generating runs (lut):                              7671.1ms (   7.7us/iter) {combos=514125}
+generating melds (2 sets / 0 runs):                23517.6ms (  23.5us/iter) {combos=258485}
+generating melds (2 sets / 0 runs) lut:            10336.1ms (  10.3us/iter) {combos=258425}
+generating melds (1 sets / 1 runs):                23946.1ms (  23.9us/iter) {combos=63237}
+generating melds (1 sets / 1 runs) lut:            12507.9ms (  12.5us/iter) {combos=63237}
+generating melds (0 sets / 2 runs):                33294.0ms (  33.3us/iter) {combos=2020}
+generating melds (0 sets / 2 runs) lut:             8886.3ms (   8.9us/iter) {combos=2020}
+generating melds (3 sets / 0 runs):                24870.7ms (  24.9us/iter) {combos=2525}
+generating melds (3 sets / 0 runs) lut:            10066.0ms (  10.1us/iter) {combos=2525}
+generating melds (2 sets / 1 runs):                42775.1ms (  42.8us/iter) {combos=12583}
+generating melds (2 sets / 1 runs) lut:            18003.2ms (  18.0us/iter) {combos=12583}
+generating melds (1 sets / 2 runs):                48575.3ms (  48.6us/iter) {combos=453}
+generating melds (1 sets / 2 runs) lut:            16922.3ms (  16.9us/iter) {combos=453}
+generating melds (0 sets / 3 runs):                68088.4ms (  68.1us/iter) {combos=0}
+generating melds (0 sets / 3 runs) lut:            10853.5ms (  10.9us/iter) {combos=0}
+generating melds 12 (0 sets / 3 runs):             67376.7ms (  67.4us/iter) {combos=0}
+generating melds 12 (0 sets / 3 runs) lut:         10853.4ms (  10.9us/iter) {combos=0}
+generating melds 13 (0 sets / 3 runs):             97268.8ms (  97.3us/iter) {combos=23}
+generating melds 13 (0 sets / 3 runs) lut:         12319.3ms (  12.3us/iter) {combos=23}
+generating melds 14 (0 sets / 3 runs):            140916.2ms ( 140.9us/iter) {combos=243}
+generating melds 14 (0 sets / 3 runs) lut:         14488.5ms (  14.5us/iter) {combos=243}
+generating melds 15 (0 sets / 3 runs):            204867.1ms ( 204.9us/iter) {combos=1359}
+generating melds 15 (0 sets / 3 runs) lut:        299747.6ms ( 299.7us/iter) {combos=1359}
+generating melds 16 (0 sets / 3 runs):           1476628.6ms (1476.6us/iter) {combos=5923}
+generating melds 16 (0 sets / 3 runs) lut:         21507.2ms (  21.5us/iter) {combos=5923}
+generating melds 17 (0 sets / 3 runs):           2565428.4ms (2565.4us/iter) {combos=18525}
+generating melds 17 (0 sets / 3 runs) lut:         26530.5ms (  26.5us/iter) {combos=18525}
+generating melds 18 (0 sets / 3 runs):           1549527.2ms (1549.5us/iter) {combos=57502}
+generating melds 18 (0 sets / 3 runs) lut:        238019.5ms ( 238.0us/iter) {combos=57502}
+generating melds 19 (0 sets / 3 runs):           1983971.9ms (1984.0us/iter) {combos=158340}
+generating melds 19 (0 sets / 3 runs) lut:        221675.8ms ( 221.7us/iter) {combos=158340}
+generating melds 20 (0 sets / 3 runs):           3354281.1ms (3354.3us/iter) {combos=396907}
+generating melds 20 (0 sets / 3 runs) lut:         75989.5ms (  76.0us/iter) {combos=396907}
+comparing sets:                                        1.4ms (   0.0us/iter) {equal=False}
+comparing runs:                                      166.0ms (   0.2us/iter) {equal=True}
+hashing sets:                                        227.2ms (   0.2us/iter) {unique=2301}
+hashing runs:                                        381.3ms (   0.4us/iter) {unique=3996}
+sorting sets:                                       1532.5ms (   1.5us/iter) {}
+sorting runs:                                       2073.9ms (   2.1us/iter) {}

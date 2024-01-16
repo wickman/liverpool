@@ -148,5 +148,5 @@ class SMECalculator(Listener):
             # print('  %d += %.1f -> %.1f' % (pid, acc, self.elos[pid] + acc))
             self.elos[pid] += acc
 
-        # print('elos after: %s' %
-        #      ' '.join('%d=%.1f' % (pid, elo) for pid, elo in self.elos.items()))
+        print('current ELOs: %s' %
+              ' '.join('%d=%.1f' % (pid, elo) for pid, elo in self.elos.items()))

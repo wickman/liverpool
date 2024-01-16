@@ -40,7 +40,7 @@ def construct_aggressive(pid, *args):
         click.fail(
             "AggressiveBuyPlayer requires exactly one argument: always_buy_if_missing (integer)"
         )
-    return AggressiveBuyPlayer(pid, int(args[0]))
+    return AggressiveBuyPlayer(pid, always_buy_if_missing=int(args[0]))
 
 
 PLAYER_CONVERSIONS = {
