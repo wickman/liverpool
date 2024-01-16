@@ -60,7 +60,7 @@ There is a sample application, simulate_deals.py that generates the probabilitie
 of going out off the deal for various objectives:
 
 ```console
-mba=liverpool=; pypy examples/simulate_deals.py
+=; pypy examples/simulate_deals.py
 Without LUTS
 sets/runs/dealt 2/0/10 iters/sets/runs/melds/out: 100000/54636/14307/ 9259/    0 [60.9us/iter]
 sets/runs/dealt 1/1/10 iters/sets/runs/melds/out: 100000/54468/14176/ 2126/    2 [54.1us/iter]
@@ -84,7 +84,7 @@ There are a couple different naive player implementations as well as a basic
 game engine and multiplayer ELO calculator.  The cli is not optimized for
 readability but you can test basic head-to-head play:
 
-```shell
+```console
 # Play 100 games between a naive but decent player, vs a naive player that
 # aggressively buys everything.  The naive but conservative player
 # consistently wins.
