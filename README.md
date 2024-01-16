@@ -96,3 +96,6 @@ current ELOs: 0=1804.6 1=1195.4
 =; pypy liverpool/bin/play.py -L elo play 100 0=naive 1=naive | grep -i ELOs | tail -1
 current ELOs: 1=1495.5 0=1504.5
 ```
+
+The `examples` directory has a few examples for the purposes of benchmarking
+and debugging.

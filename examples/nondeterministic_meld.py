@@ -1,13 +1,13 @@
 from collections import defaultdict
 
-from liverpool.algorithms import find_useful_cards
+from liverpool.algorithms import find_useful_cards, document_utility
 from liverpool.hand import Hand
 from liverpool.common import Rank, Color, Set, Run, Meld, Card, Objective
-from liverpool.game import document_utility, meld_score
 from liverpool.generation import (
     iter_melds,
     IndexedHand,
 )
+from liverpool.players.naive_player import meld_score
 
 
 hand = IndexedHand(

@@ -7,7 +7,7 @@ import sys
 
 import vmprof.profiler as vp
 
-from liverpool.algorithms import find_useful_cards, find_useful_cards_naive
+from liverpool.algorithms import find_useful_cards
 from liverpool.common import Card, Color, Rank, Run, Set, Deck, Objective
 from liverpool.hand import Hand
 from liverpool.generation import (
@@ -116,20 +116,6 @@ def generate_useful_cards(objective, num_cards, run_iter, set_iter, num_melds=IT
     return useful_missing, useful_existing
 
 
-def generate_useful_cards_naive(objective, num_cards, num_melds=ITERS, seed=1):
-    Deck.seed(seed)
-
-    useful_missing, useful_existing = 0, 0
-    for _ in range(num_melds):
-        d = Deck.new(count=2)
-        h = IndexedHand.from_deck(d, num_cards)
-        missing, existing = find_useful_cards_naive(h, objective)
-        useful_missing += len(missing)
-        useful_existing += len(existing)
-
-    return useful_missing, useful_existing
-
-
 maybe_precompute()
 
 with timed("001.deal.hand", "dealing cards"):
@@ -181,18 +167,6 @@ for cards in range(12, 21):
     ) as rv:
         combos = generate_melds(objective, cards, iter_melds, iter_runs_lut, iter_sets_lut)
         rv["combos"] = combos
-
-
-# for objective, cards in Game.TRICKS:
-#    with timed('generating useful cards       (%s)' % objective) as rv:
-#        useful_missing, useful_existing = generate_useful_cards(objective, cards, iter_runs, iter_sets)
-#        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
-#    with timed('generating useful cards lut   (%s)' % objective) as rv:
-#        useful_missing, useful_existing = generate_useful_cards(objective, cards, iter_runs_lut, iter_sets_lut)
-#        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
-#    with timed('generating useful cards naive (%s)' % objective) as rv:
-#        useful_missing, useful_existing = generate_useful_cards_naive(objective, cards)
-#        rv.update(useful_missing=useful_missing, useful_existing=useful_existing)
 
 
 sets, _ = generate_combo_set(iter_sets)

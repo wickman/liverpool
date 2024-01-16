@@ -1,7 +1,6 @@
-from liverpool.algorithms import find_useful_cards
+from liverpool.algorithms import find_useful_cards, document_utility
 from liverpool.hand import Hand
 from liverpool.common import Color, Rank, Card, Objective
-from liverpool.game import document_utility
 
 h = Hand(
     [

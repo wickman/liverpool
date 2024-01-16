@@ -29,7 +29,7 @@ setup(
     cmdclass={'unittest': RunTests},
     entry_points = {
         'console_scripts': [
-            'liverpool = liverpool.bin.play:main'
+            'liverpool = liverpool.bin.play:cli'
         ]
     }
 )

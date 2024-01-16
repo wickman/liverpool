@@ -3,7 +3,6 @@ from liverpool.common import Rank, Color, Set, Run, Meld, Card
 
 from liverpool.generation import (
     iter_updates_multi,
-    iter_updates_multi_recursive,
     iter_runs_lut,
     IndexedHand,
 )
@@ -61,5 +60,5 @@ hand = IndexedHand(
 )
 
 
-for meld_updates in iter_updates_multi_recursive(hand, table_melds, run_iterator=iter_runs_lut):
+for meld_updates in iter_updates_multi(hand, table_melds, run_iterator=iter_runs_lut):
     print(meld_updates)
